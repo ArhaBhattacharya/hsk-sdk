@@ -1,0 +1,67 @@
+# pyproject.toml : offline-capable wheel build for the hsk Python SDK (scikit-build-core + pybind11).
+#
+# NOT BUILT. The sandbox could not reach PyPI or Eigen.
+#
+# Wheel layout: hsk/__init__.py, hsk/engine.py, hsk/hsk_native.*.so
+# `wheel.packages = []` is deliberate: the Python files come from service/engine.py via CMake
+# install() rules, so the install name does not depend on the directory name.
+#
+# Add this block to the repo-root CMakeLists.txt, after the `hsk::sdk` target is defined:
+#
+#   option(HSK_BUILD_PYTHON "Build the hsk_native Python module" OFF)
+#   if(HSK_BUILD_PYTHON)
+#     find_package(pybind11 CONFIG REQUIRED)
+#     pybind11_add_module(hsk_native MODULE native/bindings.cpp)
+#     target_link_libraries(hsk_native PRIVATE hsk::sdk)
+#     target_compile_definitions(hsk_native PRIVATE EIGEN_MPL2_ONLY)
+#     install(TARGETS hsk_native LIBRARY DESTINATION hsk)
+#     install(FILES service/engine.py DESTINATION hsk)
+#     file(WRITE "${CMAKE_BINARY_DIR}/hsk_init.py" "from .engine import *  # noqa\n")
+#     install(FILES "${CMAKE_BINARY_DIR}/hsk_init.py" DESTINATION hsk RENAME __init__.py)
+#   endif()
+#
+# Also wrap the existing `install(FILES ".../hybrid_sketch.hpp" DESTINATION include/hsk)` line in
+# `if(NOT HSK_BUILD_PYTHON)`, so the wheel does not carry a stray include/ tree.
+#
+# Fully offline build (no network at any step):
+#   1. Pre-install: pip install scikit-build-core pybind11 numpy scipy   (from a local wheelhouse)
+#   2. Eigen 3.4 sources on disk, either installed system-wide (find_package finds it) or passed in:
+#        CMAKE_ARGS="-DHSK_EIGEN_INCLUDE_DIR=/path/to/eigen" \
+#          pip wheel . --no-build-isolation --no-deps -w dist/
+#      HSK_FETCH_EIGEN=OFF below makes CMake fail instead of downloading.
+[build-system]
+requires = ["scikit-build-core>=0.10", "pybind11>=2.12"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "hsk-sdk"
+version = "0.1.0"
+description = "Streaming, mergeable, zero-copy low-rank sketches (CountSketch + SRHT) with a native Eigen core"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = ["numpy>=1.23", "scipy>=1.9"]
+classifiers = [
+  "Programming Language :: C++",
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering :: Mathematics",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[tool.scikit-build]
+minimum-version = "0.10"
+cmake.version = ">=3.15"
+cmake.build-type = "Release"
+build-dir = "build/{wheel_tag}"
+wheel.packages = []
+wheel.expand-macos-universal-tags = true
+sdist.include = ["native/*", "service/*", "CMakeLists.txt"]
+
+[tool.scikit-build.cmake.define]
+HSK_BUILD_PYTHON = "ON"
+HSK_FETCH_EIGEN = "OFF"
+HSK_BUILD_DUCKDB_EXTENSION = "OFF"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

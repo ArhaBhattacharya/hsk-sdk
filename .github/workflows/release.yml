@@ -1,0 +1,108 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  wheels:
+    name: Wheels (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # pyproject.toml sets HSK_FETCH_EIGEN=OFF, so each cibuildwheel environment
+      # must already have Eigen 3.4.0 on disk (Linux builds run inside manylinux).
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v2.23.3
+        env:
+          CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-*"
+          CIBW_SKIP: "pp* *-win32 *-manylinux_i686 *-musllinux_*"
+          CIBW_ARCHS: auto
+          CIBW_BUILD_VERBOSITY: 1
+          CIBW_BEFORE_ALL_LINUX: git clone --depth 1 --branch 3.4.0 https://gitlab.com/libeigen/eigen.git /tmp/eigen
+          CIBW_ENVIRONMENT_LINUX: CMAKE_ARGS="-DHSK_EIGEN_INCLUDE_DIR=/tmp/eigen"
+          CIBW_BEFORE_ALL_MACOS: git clone --depth 1 --branch 3.4.0 https://gitlab.com/libeigen/eigen.git "$PWD/eigen-src"
+          CIBW_ENVIRONMENT_MACOS: CMAKE_ARGS="-DHSK_EIGEN_INCLUDE_DIR=$PWD/eigen-src"
+          CIBW_BEFORE_ALL_WINDOWS: git clone --depth 1 --branch 3.4.0 https://gitlab.com/libeigen/eigen.git eigen-src
+          CIBW_ENVIRONMENT_WINDOWS: CMAKE_ARGS="-DHSK_EIGEN_INCLUDE_DIR=eigen-src"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}
+          path: wheelhouse/*.whl
+          if-no-files-found: error
+
+  duckdb-extension:
+    name: DuckDB extension (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-2022]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+        with:
+          repository: duckdb/duckdb
+          ref: v1.1.2
+          path: duckdb-src
+
+      - name: Install Ubuntu build tools
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build g++ git
+
+      - name: Configure (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DHSK_DUCKDB_SOURCE_DIR="${{ github.workspace }}/duckdb-src"
+
+      - name: Configure (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cmake -S . -B build `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DHSK_DUCKDB_SOURCE_DIR="${{ github.workspace }}/duckdb-src"
+
+      - name: Build duckdb_hsk
+        run: cmake --build build --config Release --target duckdb_hsk --parallel
+
+      - name: Stage extension binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist-ext
+          found="$(find build -name 'hsk.duckdb_extension' | head -n 1)"
+          if [ -z "${found}" ]; then
+            echo "hsk.duckdb_extension not found under build/" >&2
+            find build -type f | head -n 200
+            exit 1
+          fi
+          cp "${found}" "dist-ext/hsk-${{ runner.os }}.duckdb_extension"
+          ls -la dist-ext
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: duckdb-extension-${{ runner.os }}
+          path: dist-ext/*.duckdb_extension
+          if-no-files-found: error

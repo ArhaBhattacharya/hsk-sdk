@@ -1,0 +1,7 @@
+build/
+dist/
+wheelhouse/
+__pycache__/
+*.egg-info/
+.vscode/
+.venv*
