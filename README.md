@@ -21,15 +21,16 @@ A sketch of an m×n matrix A holds `Yt = (AΩ)ᵀ` (l×m) and `W = ΨA` (s×n). 
 ## Repository layout
 
 ```
-native/hybrid_sketch.hpp        header-only C++17 engine (needs Eigen >= 3.3)
-native/bindings.cpp             pybind11 module hsk_native (zero-copy mmap state, HSK1 buffers)
-native/hsk_duckdb_extension.cpp DuckDB extension
-native/hsk_extension.hpp        class declaration for DuckDB's static loader
-service/engine.py               Python API (installed as hsk.engine); NumPy fallback backend
-CMakeLists.txt                  SDK, Python module and DuckDB targets
-pyproject.toml                  scikit-build-core wheel build
-release.yml                     CI: wheels (Linux/Windows/macOS) and DuckDB extension
-hsk_showcase.ipynb              demo notebook (streaming, merge, delete, memmap, rolling anomalies)
+native/hybrid_sketch.hpp            header-only C++17 engine (needs Eigen >= 3.3)
+native/bindings.cpp                 pybind11 module hsk_native (zero-copy mmap state, HSK1 buffers)
+native/hsk_duckdb_extension.cpp     DuckDB extension
+native/hsk_extension.hpp            class declaration for DuckDB's static loader
+service/engine.py                   Python API (installed as hsk.engine); NumPy fallback backend
+CMakeLists.txt                      SDK, Python module and DuckDB targets
+pyproject.toml                      scikit-build-core wheel build
+release.yml                         CI: wheels (Linux/Windows/macOS) and DuckDB extension
+hsk_showcase.ipynb                  demo notebook (streaming, merge, delete, memmap, rolling anomalies)
+Matrix_Sketching_foundations.ipynb  NumPy/SciPy prototype of HMT & CountSketch (algorithmic foundation)
 ```
 
 ## Install (Python)
