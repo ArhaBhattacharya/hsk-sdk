@@ -34,13 +34,15 @@ hsk_showcase.ipynb              demo notebook (streaming, merge, delete, memmap,
 
 ## Install (Python)
 
-Install a built wheel (wheels are built for CPython 3.9–3.13):
+See the [Python installation guide](docs/installation.md). In brief, download
+the wheel artifact for your operating system from a successful
+[Release workflow](https://github.com/ArhaBhattacharya/hsk-sdk/actions/workflows/release.yml)
+run, extract it, and install it with:
 
-    pip install hsk_sdk-0.1.0-<tag>.whl
+    python -m pip install /path/to/hsk_sdk-<version>-<python>-<platform>.whl
 
-Build from source. `pyproject.toml` sets `HSK_FETCH_EIGEN=OFF`, so Eigen 3.4 must already be on disk:
-
-    CMAKE_ARGS="-DHSK_EIGEN_INCLUDE_DIR=/path/to/eigen" pip wheel . --no-build-isolation --no-deps -w dist/
+Wheels are built for CPython 3.9–3.13. Source builds require Eigen 3.4 to
+already be available because `HSK_FETCH_EIGEN=OFF`.
 
 `hsk.BACKEND` is `"native"` or `"numpy"`. Force one with the environment variable `HSK_BACKEND`. The NumPy fallback has the same API but a different RNG, so it **cannot read or write HSK1 blobs** and cannot be merged with native sketches.
 
