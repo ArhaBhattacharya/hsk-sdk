@@ -9,4 +9,6 @@ artifacts/
 desktop.ini
 demo/
 temp/
+cmake-build-*/
+.idea/
 ROADMAP_1.md
