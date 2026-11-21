@@ -70,6 +70,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cmake ninja-build g++ git
 
+      - name: Print toolchain (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          cat /etc/os-release | head -3
+          g++ --version | head -1
+          g++ -dumpfullversion -dumpversion
+          ldd --version | head -1
+
       - name: Configure (Ubuntu)
         if: runner.os == 'Linux'
         run: |
@@ -84,7 +92,12 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release `
             -DHSK_DUCKDB_SOURCE_DIR="${{ github.workspace }}/duckdb-src"
 
+      # DuckDB v1.1.2's third_party/fsst/libfsst.hpp uses uint8_t..uint64_t without including
+      # <cstdint>; newer libstdc++ no longer provides it transitively. The inner DuckDB configure
+      # (run by the duckdb_hsk target in a fresh build dir) seeds CMAKE_CXX_FLAGS from CXXFLAGS.
       - name: Build duckdb_hsk
+        env:
+          CXXFLAGS: ${{ runner.os == 'Linux' && '-include cstdint' || '' }}
         run: cmake --build build --config Release --target duckdb_hsk --parallel
 
       - name: Stage extension binary
