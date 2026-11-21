@@ -143,7 +143,7 @@ FROM sketches t, LATERAL hsk_sketch_svd(t.sk, 5) s;
 
 ## Memory
 
-Sketch state is $8 \times (l \cdot m + s \cdot n)$ bytes plus an 88-byte header, where $l = \min(\text{rank} + \text{oversample}, m, n)$ and $s = \min(m, \max(l, \lceil \text{core_factor} \cdot l \rceil))$. Memory usage is independent of the number of streamed entries. For example, $m = n = 10{,}000$ with `rank = 8` gives $l = 18$, $s = 72$, and `7.2 MB` of state (shared sign tables add up to `8 MB` per test matrix).
+Sketch state is $8 \times (l \cdot m + s \cdot n)$ bytes plus an 88-byte header, where $l = \min(\text{rank} + \text{oversample}, m, n)$ and `s = min(m, max(l, ceil(core_factor * l)))`. Memory usage is independent of the number of streamed entries. For example, $m = n = 10{,}000$ with `rank = 8` gives $l = 18$, $s = 72$, and `7.2 MB` of state (shared sign tables add up to `8 MB` per test matrix).
 
 ## Accuracy & benchmarks
 
