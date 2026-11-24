@@ -52,7 +52,12 @@ static_assert(__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__,
 #if defined(_MSC_VER)
 #define HSK_RESTRICT __restrict
 #define HSK_SIMD
+#if defined(_M_IX86) || defined(_M_X64)
+#include <xmmintrin.h>
+#define HSK_PREFETCH_W(p) _mm_prefetch(reinterpret_cast<const char*>(p), _MM_HINT_T0)
+#else
 #define HSK_PREFETCH_W(p) ((void)0)
+#endif
 #else
 #define HSK_RESTRICT __restrict__
 #define HSK_PREFETCH_W(p) __builtin_prefetch((p), 1, 3)
@@ -950,6 +955,7 @@ class StreamingLowRank {
   // ---- factorization ------------------------------------------------------
   SvdResult finalize(Index k) const {
     if (k < 1) throw std::invalid_argument("finalize: k must be >= 1");
+    k = std::min<Index>(k, std::min(rank_, l_));  // components past `rank` are mostly noise
     MatrixXd Q = detail::orth(MatrixXd(Yt_.transpose()));             // m x l
     MatrixXd PQ = psi_.apply(Q.transpose()).transpose();              // s x l  (= Psi Q)
     Eigen::ColPivHouseholderQR<MatrixXd> qr(PQ);

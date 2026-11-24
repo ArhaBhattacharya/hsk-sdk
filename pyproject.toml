@@ -35,7 +35,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "hsk-sdk"
-version = "0.1.0"
+version = "0.1.1"
 description = "Streaming, mergeable, zero-copy low-rank sketches (CountSketch + SRHT) with a native Eigen core"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -46,8 +46,13 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Mathematics",
 ]
 
+[project.urls]
+Repository = "https://github.com/ArhaBhattacharya/hsk-sdk"
+Issues = "https://github.com/ArhaBhattacharya/hsk-sdk/issues"
+
 [project.optional-dependencies]
 test = ["pytest>=7"]
+dev = ["pytest>=7", "scikit-learn>=1.2"]
 
 [tool.scikit-build]
 minimum-version = "0.10"
@@ -56,7 +61,8 @@ cmake.build-type = "Release"
 build-dir = "build/{wheel_tag}"
 wheel.packages = []
 wheel.expand-macos-universal-tags = true
-sdist.include = ["native/*", "service/*", "CMakeLists.txt"]
+sdist.include = ["native/*", "service/*", "CMakeLists.txt", "README.md"]
+sdist.exclude = ["temp/*", "ROADMAP_1.md", "AGENTS.md", "demo/*", "artifacts/*", "wheelhouse/*", "dist/*", "dist-ext/*"]
 
 [tool.scikit-build.cmake.define]
 HSK_BUILD_PYTHON = "ON"

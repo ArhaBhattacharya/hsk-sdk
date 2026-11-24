@@ -153,7 +153,8 @@ class Sketch {
 
   // Atomic with respect to bad input: every entry is validated before any is applied.
   void update_coo(const IdxArr& r, const IdxArr& c, const ValArr& v) {
-    if (r.ndim() != 1 || c.ndim() != 1 || v.ndim() != 1 || r.shape(0) != c.shape(0) || r.shape(0) != v.shape(0))
+    if (r.ndim() != 1 || c.ndim() != 1 || v.ndim() != 1 ||
+        r.shape(0) != c.shape(0) || r.shape(0) != v.shape(0))
       throw std::invalid_argument("rows/cols/vals must be 1-D arrays of equal length");
     const std::size_t cnt = static_cast<std::size_t>(v.shape(0));
     const std::int64_t* R = r.data();
@@ -162,11 +163,62 @@ class Sketch {
     for (std::size_t k = 0; k < cnt; ++k) {
       if (R[k] < 0 || R[k] >= m_ || C[k] < 0 || C[k] >= n_)
         throw std::out_of_range("update_coo: index outside [0,m) x [0,n)");
-      if (!std::isfinite(V[k])) throw std::invalid_argument("update_coo: value must be finite");
+      if (!std::isfinite(V[k]))
+        throw std::invalid_argument("update_coo: value must be finite");
     }
     std::unique_ptr<py::gil_scoped_release> release;
     if (cnt >= 256) release.reset(new py::gil_scoped_release());  // not worth it for tiny batches
-    for (std::size_t k = 0; k < cnt; ++k) apply_unchecked(R[k], C[k], V[k]);
+    constexpr std::size_t kAhead = 8;
+    for (std::size_t k = 0; k < cnt; ++k) {
+      if (k + kAhead < cnt) {
+        prefetch_columns(R[k + kAhead], C[k + kAhead]);
+      }
+      apply_unchecked(static_cast<Index>(R[k]), static_cast<Index>(C[k]), V[k]);
+    }
+  }
+
+  // CSR ingestion: entry (i, indices[p]) += scale * data[p]. Everything is validated before anything is applied.
+  template <class IT>
+  void update_csr(const IT* indptr, const IT* indices, const double* data, std::size_t nnz, double scale) {
+    if (!std::isfinite(scale))
+      throw std::invalid_argument("update_csr: scale must be finite");
+    if (indptr == nullptr || (nnz > 0 && (indices == nullptr || data == nullptr)))
+      throw std::invalid_argument("update_csr: null input");
+    if (indptr[0] != 0)
+      throw std::invalid_argument("update_csr: indptr[0] must be 0");
+    for (Index i = 0; i < m_; ++i)
+      if (indptr[i + 1] < indptr[i])
+        throw std::invalid_argument("update_csr: indptr must be non-decreasing");
+    if (static_cast<std::int64_t>(indptr[m_]) != static_cast<std::int64_t>(nnz))
+      throw std::invalid_argument("update_csr: indptr[m] must equal nnz");
+    for (std::size_t p = 0; p < nnz; ++p) {
+      if (indices[p] < 0 || static_cast<std::int64_t>(indices[p]) >= n_)
+        throw std::out_of_range("update_csr: column index outside [0,n)");
+      if (!std::isfinite(data[p]) || !std::isfinite(data[p] * scale))
+        throw std::invalid_argument("update_csr: value must be finite");
+    }
+    if (nnz == 0 || scale == 0.0) return;
+
+    constexpr std::int64_t kAhead = 8;
+    const std::int64_t total = static_cast<std::int64_t>(nnz);
+    const Index nw = std::min<Index>(s_, 32);  // up to 4 cache lines of the W column
+    for (Index i = 0; i < m_; ++i) {
+      const std::int64_t b = static_cast<std::int64_t>(indptr[i]);
+      const std::int64_t e = static_cast<std::int64_t>(indptr[i + 1]);
+      if (b == e) continue;
+      const auto pl = psi_->locate(i);  // one hash per row, not per entry
+      double* yrow = yt_ + i * l_;     // fixed for the whole row, stays in L1
+      for (std::int64_t p = b; p < e; ++p) {
+        if (p + kAhead < total) {  // indices already validated
+          const double* wn = w_ + static_cast<Index>(indices[p + kAhead]) * s_;
+          for (Index t = 0; t < nw; t += 8) HSK_PREFETCH_W(wn + t);
+        }
+        const Index j = static_cast<Index>(indices[p]);
+        const double v = data[p] * scale;
+        om_->add_scaled_bucket(om_->locate(j), v, yrow);
+        psi_->add_scaled_bucket(pl, v, w_ + j * s_);
+      }
+    }
   }
 
   void update_dense(const Eigen::Ref<const MatrixXd>& D) {
@@ -284,6 +336,14 @@ class Sketch {
     psi_->add_scaled_bucket(psi_->locate(i), v, w_ + j * s_);
   }
 
+  void prefetch_columns(std::int64_t i, std::int64_t j) const {
+    const double* y = yt_ + static_cast<Index>(i) * l_;
+    const double* w = w_ + static_cast<Index>(j) * s_;
+    const Index ny = std::min<Index>(l_, 32), nw = std::min<Index>(s_, 32);  // up to 4 cache lines each
+    for (Index t = 0; t < ny; t += 8) HSK_PREFETCH_W(y + t);
+    for (Index t = 0; t < nw; t += 8) HSK_PREFETCH_W(w + t);
+  }
+
   hd::BlobHeader header(std::uint64_t checksum) const {
     hd::BlobHeader h;
     h.m = m_; h.n = n_; h.rank = rank_; h.oversample = oversample_;
@@ -373,6 +433,24 @@ hsk::RsvdOptions make_opts(Index rank, Index oversample, int q, double cf, std::
   return o;
 }
 
+template <class IT>
+void csr_update(Sketch& s,
+                const py::array_t<IT, py::array::c_style>& indptr,
+                const py::array_t<IT, py::array::c_style>& indices,
+                const ValArr& data,
+                double scale) {
+  if (indptr.ndim() != 1 || indices.ndim() != 1 || data.ndim() != 1)
+    throw std::invalid_argument("CSR arrays (indptr, indices, data) must be 1-D");
+  if (indptr.shape(0) != s.m() + 1)
+    throw std::invalid_argument("CSR indptr length must equal m + 1");
+  if (indices.shape(0) != data.shape(0))
+    throw std::invalid_argument("CSR indices and data must have equal length");
+  const std::size_t nnz = static_cast<std::size_t>(data.shape(0));
+  std::unique_ptr<py::gil_scoped_release> release;
+  if (nnz >= 256) release.reset(new py::gil_scoped_release());
+  s.update_csr<IT>(indptr.data(), indices.data(), data.data(), nnz, scale);
+}
+
 }  // namespace
 
 PYBIND11_MODULE(hsk_native, mod) {
@@ -417,6 +495,10 @@ PYBIND11_MODULE(hsk_native, mod) {
       })
       .def("update", &Sketch::update, py::arg("i"), py::arg("j"), py::arg("v"))
       .def("update_coo", &Sketch::update_coo, py::arg("rows"), py::arg("cols"), py::arg("vals"))
+      .def("update_csr", &csr_update<std::int32_t>, py::arg("indptr"), py::arg("indices"), py::arg("data"),
+           py::arg("scale") = 1.0)
+      .def("update_csr", &csr_update<std::int64_t>, py::arg("indptr"), py::arg("indices"), py::arg("data"),
+           py::arg("scale") = 1.0)
       .def("update_dense", &Sketch::update_dense, py::arg("D"))
       .def("merge", &Sketch::merge, py::arg("other"))
       .def("merge_from_buffer", &Sketch::merge_from_buffer, py::arg("buf"))

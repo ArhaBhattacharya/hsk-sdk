@@ -28,7 +28,7 @@ native/hsk_extension.hpp            class declaration for DuckDB's static loader
 service/engine.py                   Python API (installed as hsk.engine); NumPy fallback backend
 CMakeLists.txt                      SDK, Python module and DuckDB targets
 pyproject.toml                      scikit-build-core wheel build
-release.yml                         CI: wheels (Linux/Windows/macOS) and DuckDB extension
+.github/workflows/release.yml       CI: wheels (Linux/Windows/macOS) and DuckDB extension
 hsk_showcase.ipynb                  demo notebook (streaming, merge, delete, memmap, rolling anomalies)
 Matrix_Sketching_foundations.ipynb  NumPy/SciPy prototype of HMT & CountSketch (algorithmic foundation)
 ```
@@ -37,14 +37,14 @@ Matrix_Sketching_foundations.ipynb  NumPy/SciPy prototype of HMT & CountSketch (
 
 See the full **[Installation Guide](docs/installation.md)** for platform details, checksums, DuckDB setup, and source builds.
 
-Prebuilt wheels (CPython 3.9–3.13) and the DuckDB v1.1.2 extension are attached to the [v0.1.0 GitHub Release](https://github.com/ArhaBhattacharya/hsk-sdk/releases/tag/v0.1.0) (not yet published to PyPI):
+Prebuilt wheels (CPython 3.9–3.13; Windows `cp312` and Linux `x86_64` `cp313` verified) and the DuckDB v1.1.2 extension are attached to the [v0.1.1 GitHub Release](https://github.com/ArhaBhattacharya/hsk-sdk/releases/tag/v0.1.1) (not yet published to PyPI):
 
 ```bash
 # Example: Windows 64-bit, Python 3.12
-python -m pip install https://github.com/ArhaBhattacharya/hsk-sdk/releases/download/v0.1.0/hsk_sdk-0.1.0-cp312-cp312-win_amd64.whl
+python -m pip install https://github.com/ArhaBhattacharya/hsk-sdk/releases/download/v0.1.1/hsk_sdk-0.1.1-cp312-cp312-win_amd64.whl
 ```
 
-Source builds require Eigen 3.4 to already be available because `HSK_FETCH_EIGEN=OFF`.
+Prebuilt wheel users do not need Eigen 3.4 or a C++ compiler installed. Only source builds require Eigen 3.4 (and a C++17 compiler) to already be available because `HSK_FETCH_EIGEN=OFF`.
 
 `hsk.BACKEND` is `"native"` or `"numpy"` (force one with the `HSK_BACKEND` environment variable). The NumPy fallback shares the same API but uses a different RNG, so it **cannot read or write `HSK1` blobs** and cannot be merged with native sketches.
 
@@ -85,7 +85,7 @@ rs.anomaly_score()              # fraction of the last batch outside the window'
 
 ```python
 hsk.StreamingSketch(m, n, rank, oversample=10, core_factor=4.0, c_factor=8.0, seed=0xC0FFEE, *, yt=None, w=None)
-  .update_coo(I, J, V)  .update_dense(D)  .merge(other)  .clear()  .finalize(k)
+  .update_coo(I, J, V)  .update_csr(A, scale=1.0)  .update_dense(D)  .merge(other)  .clear()  .finalize(k)
   .yt (l x m)  .w (s x n)  .set_state(yt, w)  .p  .memory_bytes()
   .to_bytes()  .write_into(buf)  .load_bytes(data)  .merge_bytes(data)  .blob_size
   StreamingSketch.from_bytes(data)  StreamingSketch.inspect_bytes(data)      # blobs: native backend only
@@ -139,7 +139,7 @@ FROM sketches t, LATERAL hsk_sketch_svd(t.sk, 5) s;
 - A negative `val` subtracts; duplicate `(row_idx, col_idx)` pairs sum; an aggregate over zero rows returns `NULL`.
 - Defaults match Python: `oversample = 10`, `core_factor = 4.0`, CountSketch width factor `c_factor = 8.0`.
 - **Memory:** Each aggregate state (per thread, per group) holds a full sketch. The per-sketch cap is `1 GiB` (`HSK_MAX_SKETCH_BYTES`, hard limit `3500 MiB`). Prefer fewer groups with larger sketches over many groups.
-- **Known gap:** `hsk_sketch_svd` can return components beyond `rank` (up to `rank + oversample`), which are mostly noise. The Python API clamps to `rank`, whereas the extension does not yet—request `k <= rank` until this is fixed.
+- `hsk_sketch_svd(sk, k)` clamps `k` to `min(rank, l)` (matching Python's `finalize(k)`).
 
 ## Memory
 
@@ -172,12 +172,13 @@ Single runs on a laptop with synthetic data (random indices for throughput rows;
 ## Known limits & unverified areas
 
 - **Unmeasured regimes:** Clustered or slowly decaying spectra (e.g., $100, 95, 92, \dots$), and `rsvd_certified` on noise-dominated matrices.
+- **Coherent / hub-dominated matrices at larger rank:** Single-pass CountSketch + SRHT (`HSK1`) can suffer bucket collisions on extremely coherent or hub-dominated matrices at larger ranks (`rank >= 32`). Raising `c_factor` widens intermediate buckets without growing `Yt`/`W` state RAM, but breaks Python <-> DuckDB merge compatibility unless both sides match (DuckDB hardcodes `c_factor = 8.0`).
 - **Floating-point non-determinism across merges:** Merged blobs are not byte-identical because merge order and FMA contraction change last-bit rounding. Compare factors with tolerances rather than raw blob equality.
 - **Sliding-window drift:** `RollingFactorStream` retracts expired ticks with `-val`, accumulating small floating-point residue over long runs. `rebuild_every` is off (`0`) by default—set it (e.g., every few hundred ticks) or call `rebuild()` periodically to recompute from the retained window in $O(\text{nnz in window})$ time.
 - **Memmap recovery:** `RollingFactorStream` keeps its tick history in memory only; reopening a memmap sketch restores the sketch state but not the sliding window. Memmap writes go through the OS page cache and `flush()`, so take periodic `to_bytes()` snapshots if crash recovery is required.
 - **Thread safety:** Sketches are not thread-safe for concurrent mutation.
 - **RNG & platform portability:** Native sketches derive hashes, signs, and sampled Hadamard rows from `SplitMix64`, making `HSK1` blobs reproducible across compilers and OSes. The NumPy fallback uses `np.random.default_rng` and is incompatible. The certified error bound in `rsvd_certified` uses `std::mt19937_64` and `std::normal_distribution`, which may vary slightly across standard libraries.
-- **Platform verification:** Windows x64 (Python 3.12), Linux x86_64 (Python 3.13), and the Windows DuckDB v1.1.2 extension have been runtime-tested; remaining Python wheels (CPython 3.9–3.13 across Windows, Linux, and macOS) and the Linux DuckDB extension are built by CI (`release.yml`) and awaiting runtime verification.
+- **Platform verification:** Windows x64 (Python 3.12), Linux x86_64 (Python 3.13), and the Windows DuckDB v1.1.2 extension have been runtime-tested; remaining Python wheels (CPython 3.9–3.13 across Windows, Linux, and macOS) and the Linux/macOS DuckDB extensions are built by CI (`.github/workflows/release.yml`) and awaiting runtime verification.
 
 ## License
 

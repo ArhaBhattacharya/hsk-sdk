@@ -4,8 +4,6 @@ on:
   workflow_dispatch:
   release:
     types: [published]
-  push:
-    tags: ["v*"]
 
 permissions:
   contents: read
@@ -36,10 +34,12 @@ jobs:
           CIBW_BUILD_VERBOSITY: 1
           CIBW_BEFORE_ALL_LINUX: git clone --depth 1 --branch 3.4.0 https://gitlab.com/libeigen/eigen.git /tmp/eigen
           CIBW_ENVIRONMENT_LINUX: CMAKE_ARGS="-DHSK_EIGEN_INCLUDE_DIR=/tmp/eigen"
-          CIBW_BEFORE_ALL_MACOS: git clone --depth 1 --branch 3.4.0 https://gitlab.com/libeigen/eigen.git "$PWD/eigen-src"
-          CIBW_ENVIRONMENT_MACOS: CMAKE_ARGS="-DHSK_EIGEN_INCLUDE_DIR=$PWD/eigen-src"
-          CIBW_BEFORE_ALL_WINDOWS: git clone --depth 1 --branch 3.4.0 https://gitlab.com/libeigen/eigen.git eigen-src
-          CIBW_ENVIRONMENT_WINDOWS: CMAKE_ARGS="-DHSK_EIGEN_INCLUDE_DIR=eigen-src"
+          CIBW_BEFORE_ALL_MACOS: git clone --depth 1 --branch 3.4.0 https://gitlab.com/libeigen/eigen.git /tmp/eigen
+          CIBW_ENVIRONMENT_MACOS: CMAKE_ARGS="-DHSK_EIGEN_INCLUDE_DIR=/tmp/eigen"
+          CIBW_BEFORE_ALL_WINDOWS: git clone --depth 1 --branch 3.4.0 https://gitlab.com/libeigen/eigen.git C:/eigen-src
+          CIBW_ENVIRONMENT_WINDOWS: CMAKE_ARGS="-DHSK_EIGEN_INCLUDE_DIR=C:/eigen-src"
+          CIBW_TEST_REQUIRES: "pytest>=7"
+          CIBW_TEST_COMMAND: 'python -c "import hsk; assert hsk.BACKEND == ''native'', hsk.BACKEND" && pytest -v {project}/tests/test_core_priorities.py'
 
       - uses: actions/upload-artifact@v4
         with:
@@ -54,7 +54,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-2022]
+        os: [ubuntu-latest, windows-2022, macos-15]
     steps:
       - uses: actions/checkout@v4
 
@@ -91,6 +91,11 @@ jobs:
           cmake -S . -B build `
             -DCMAKE_BUILD_TYPE=Release `
             -DHSK_DUCKDB_SOURCE_DIR="${{ github.workspace }}/duckdb-src"
+
+      - name: Configure (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DHSK_DUCKDB_SOURCE_DIR="${{ github.workspace }}/duckdb-src"
 
       # DuckDB v1.1.2's third_party/fsst/libfsst.hpp uses uint8_t..uint64_t without including
       # <cstdint>; newer libstdc++ no longer provides it transitively. The inner DuckDB configure

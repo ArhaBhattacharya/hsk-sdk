@@ -3,7 +3,7 @@
 Install the **`hsk`** Python SDK or DuckDB extension for certified randomized SVD and matrix sketching.
 
 > [!NOTE]
-> **Pre-release (`v0.1.0`):** `hsk-sdk` is not yet published to PyPI. Prebuilt binaries are hosted on the [v0.1.0 GitHub Release](https://github.com/ArhaBhattacharya/hsk-sdk/releases/tag/v0.1.0). The distribution name for `pip` is **`hsk-sdk`**, while the Python import name is **`hsk`**.
+> **Pre-release (`v0.1.1`):** `hsk-sdk` is not yet published to PyPI. Prebuilt binaries are hosted on the [v0.1.1 GitHub Release](https://github.com/ArhaBhattacharya/hsk-sdk/releases/tag/v0.1.1). The distribution name for `pip` is **`hsk-sdk`**, while the Python import name is **`hsk`**. Prebuilt wheel users do **not** need Eigen 3.4 or a C++ compiler installed.
 
 ---
 
@@ -14,14 +14,14 @@ Install the **`hsk`** Python SDK or DuckDB extension for certified randomized SV
 Run the command matching your OS (examples shown for **Python 3.12**—replace both instances of `cp312` with `cp39`, `cp310`, `cp311`, or `cp313` to match your interpreter):
 
 ```bash
-# Windows (64-bit) — cp312 tested
-python -m pip install https://github.com/ArhaBhattacharya/hsk-sdk/releases/download/v0.1.0/hsk_sdk-0.1.0-cp312-cp312-win_amd64.whl
+# Windows (64-bit) — cp312 verified
+python -m pip install https://github.com/ArhaBhattacharya/hsk-sdk/releases/download/v0.1.1/hsk_sdk-0.1.1-cp312-cp312-win_amd64.whl
 
-# Linux (x86_64, glibc >= 2.17) — cp313 tested
-python -m pip install https://github.com/ArhaBhattacharya/hsk-sdk/releases/download/v0.1.0/hsk_sdk-0.1.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+# Linux (x86_64, glibc >= 2.17) — cp313 verified
+python -m pip install https://github.com/ArhaBhattacharya/hsk-sdk/releases/download/v0.1.1/hsk_sdk-0.1.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
 
 # macOS (Apple Silicon, macOS 11+)
-python -m pip install https://github.com/ArhaBhattacharya/hsk-sdk/releases/download/v0.1.0/hsk_sdk-0.1.0-cp312-cp312-macosx_11_0_arm64.whl
+python -m pip install https://github.com/ArhaBhattacharya/hsk-sdk/releases/download/v0.1.1/hsk_sdk-0.1.1-cp312-cp312-macosx_11_0_arm64.whl
 ```
 
 > [!TIP]
@@ -31,7 +31,7 @@ python -m pip install https://github.com/ArhaBhattacharya/hsk-sdk/releases/downl
 <summary><strong>Wheel filename reference &amp; offline installation</strong></summary>
 
 #### Supported wheel tags
-Prebuilt wheels follow the format `hsk_sdk-0.1.0-<py>-<py>-<platform>.whl`:
+Prebuilt wheels follow the format `hsk_sdk-0.1.1-<py>-<py>-<platform>.whl`:
 
 | System | Platform tag | Supported Python tags |
 |---|---|---|
@@ -44,7 +44,7 @@ Prebuilt wheels follow the format `hsk_sdk-0.1.0-<py>-<py>-<platform>.whl`:
 #### Installing from a local download or offline folder
 If you downloaded the `.whl` file manually:
 ```bash
-python -m pip install hsk_sdk-0.1.0-cp312-cp312-win_amd64.whl
+python -m pip install hsk_sdk-0.1.1-cp312-cp312-win_amd64.whl
 ```
 
 To let `pip` pick the right wheel from a local directory (ensure `numpy>=1.23` and `scipy>=1.9` are already installed or present in `./wheelhouse`):
@@ -96,14 +96,14 @@ DuckDB derives the extension entry point from its **filename**, so the downloade
 
 ```powershell
 # Download and save with the required filename in one step
-Invoke-WebRequest -Uri "https://github.com/ArhaBhattacharya/hsk-sdk/releases/download/v0.1.0/hsk-Windows.duckdb_extension" -OutFile hsk.duckdb_extension
+Invoke-WebRequest -Uri "https://github.com/ArhaBhattacharya/hsk-sdk/releases/download/v0.1.1/hsk-Windows.duckdb_extension" -OutFile hsk.duckdb_extension
 ```
 
-*(A Linux `x86_64` build is available in the [CI workflow artifacts](#ci-artifacts-fallback); unzip it and rename `hsk-Linux.duckdb_extension` to `hsk.duckdb_extension`. There is currently no prebuilt macOS extension.)*
+*(Linux `x86_64` and macOS `arm64` builds are available in the [CI workflow artifacts](#ci-artifacts-fallback); unzip and rename `hsk-Linux.duckdb_extension` or `hsk-macOS.duckdb_extension` to `hsk.duckdb_extension`.)*
 
 ### 2. Load and verify
 
-Because the `v0.1.0` binary is unsigned, enable unsigned extensions when connecting:
+Because the `v0.1.1` binary is unsigned, enable unsigned extensions when connecting:
 
 **From Python (`pip install duckdb==1.1.2`):**
 ```python
@@ -154,12 +154,12 @@ SELECT t.component_idx, t.singular_value FROM s, LATERAL hsk_sketch_svd(s.sk, 5)
 
 ### Build Python SDK from source
 
-Wheel builds set `HSK_FETCH_EIGEN=OFF` in `pyproject.toml`, so provide Eigen locally unless it is already installed system-wide via CMake's `find_package(Eigen3)`.
+Prebuilt wheel users do not need Eigen 3.4 or a C++ compiler installed. Only source builds require Eigen 3.4 (and a C++17 compiler) to already be available unless Eigen is installed system-wide via CMake's `find_package(Eigen3)`, because `pyproject.toml` sets `HSK_FETCH_EIGEN=OFF`.
 
 ```bash
 # Linux / macOS
 git clone https://github.com/ArhaBhattacharya/hsk-sdk.git && cd hsk-sdk
-# Optional: run `git checkout v0.1.0` to match the release tag
+# Optional: run `git checkout v0.1.1` to match the release tag
 git clone --depth 1 --branch 3.4.0 https://gitlab.com/libeigen/eigen.git /tmp/eigen
 CMAKE_ARGS="-DHSK_EIGEN_INCLUDE_DIR=/tmp/eigen" python -m pip install .
 ```
@@ -199,7 +199,7 @@ cmake --build build --config Release --target duckdb_hsk --parallel
 |---|---|
 | `pip show hsk` returns *not found* | The package name is `hsk-sdk`, not `hsk`, or `pip` points to a different Python environment. Run `python -m pip show -f hsk-sdk`. |
 | `No matching distribution found` / `not a supported wheel` | Either no wheel exists for your OS/architecture (e.g., Intel Mac, Linux `aarch64`, Python 3.14), or `pip` is outdated. Upgrade `pip` (`python -m pip install --upgrade pip`) so it recognizes `manylinux2014` and `macosx_11_0` tags. |
-| `404` when installing from a GitHub Release URL | Check the URL path (`/releases/download/v0.1.0/...`), or if accessing a private fork, download the asset via your browser while signed in to GitHub and install the local file. |
+| `404` when installing from a GitHub Release URL | Check the URL path (`/releases/download/v0.1.1/...`), or if accessing a private fork, download the asset via your browser while signed in to GitHub and install the local file. |
 | `hsk.BACKEND` prints `numpy` | The C++ extension failed to load and fell back to pure Python. Run `import hsk.hsk_native` to inspect the import error, or set `HSK_BACKEND=native` before importing to raise a hard error. |
 | Extension fails to load with a version mismatch | Your DuckDB version is not `1.1.2`. Install `duckdb==1.1.2` or use the `v1.1.2` CLI. |
 | Extension refuses to load as *unsigned* | Initialize DuckDB with `config={"allow_unsigned_extensions": "true"}` or launch the CLI with `duckdb -unsigned`. |
@@ -218,7 +218,7 @@ cmake --build build --config Release --target duckdb_hsk --parallel
 
 ## Release & Platform Support Matrix
 
-The `v0.1.0` release artifacts were built from the `v0.1.0` git tag (not current `main`).
+The `v0.1.1` release artifacts are built from the `v0.1.1` git tag (or CI release workflow).
 
 | Component | Verification Status | Notes |
 |---|---|---|
@@ -229,11 +229,11 @@ The `v0.1.0` release artifacts were built from the `v0.1.0` git tag (not current
 | macOS `arm64`, Python 3.9–3.13 wheels | Built by CI | Packaged in Release; not yet runtime-tested |
 | **DuckDB extension, Windows x64 (`v1.1.2`)** | **Tested** | Verified locally by maintainer |
 | DuckDB extension, Linux `x86_64` (`v1.1.2`) | Built by CI | Available in GitHub Actions artifacts only; not yet runtime-tested |
-| DuckDB extension, macOS | Not built | Must be built from source |
+| DuckDB extension, macOS `arm64` (`v1.1.2`) | Built by CI | Available in GitHub Actions artifacts only; not yet runtime-tested |
 | Python 3.14 | Not built | Source build is untested |
 
 ### CI Artifacts Fallback
 
-If you need the Linux DuckDB extension or an unreleased build, download the zipped artifacts from a [Release workflow run](https://github.com/ArhaBhattacharya/hsk-sdk/actions/workflows/release.yml) (requires GitHub sign-in; artifacts expire after the repository retention window):
+If you need the Linux/macOS DuckDB extension or an unreleased build, download the zipped artifacts from a [Release workflow run](https://github.com/ArhaBhattacharya/hsk-sdk/actions/workflows/release.yml) (requires GitHub sign-in; artifacts expire after the repository retention window):
 * `wheels-windows-latest`, `wheels-ubuntu-latest`, `wheels-macos-latest`
-* `duckdb-extension-Windows`, `duckdb-extension-Linux`
+* `duckdb-extension-Windows`, `duckdb-extension-Linux`, `duckdb-extension-macOS`

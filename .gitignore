@@ -1,5 +1,6 @@
 build/
 dist/
+dist-ext/
 wheelhouse/
 __pycache__/
 *.egg-info/
@@ -11,4 +12,7 @@ demo/
 temp/
 cmake-build-*/
 .idea/
+.pytest_cache/
 ROADMAP_1.md
+AGENTS.md
+CLAUDE.md

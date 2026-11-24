@@ -23,7 +23,7 @@
 //     from other tables via (implicit or explicit) LATERAL joins:
 //         SELECT s.* FROM t, LATERAL hsk_sketch_svd(t.sk, 5) s;
 //     Passing a bare scalar subquery as the argument may be rejected by DuckDB's binder; use the
-//     LATERAL form above. k larger than the sketch rank returns all available components.
+//     LATERAL form above. k larger than `rank` is clamped to min(rank, l).
 //
 // Targets DuckDB's C++ extension API: the DatabaseInstance/ExtensionUtil entry point (v1.1-v1.3)
 // and, when "duckdb/main/extension/extension_loader.hpp" exists, the ExtensionLoader entry

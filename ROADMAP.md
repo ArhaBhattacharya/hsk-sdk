@@ -9,20 +9,20 @@ Where the project is heading, in priority order, with what is deliberately not b
 - **Measure before claiming.** No speed claim is made until it has been measured on the same data against the current code.
 - **Known limit, stated up front:** the single-pass estimate is inflated on noise-dominated or flat-spectrum matrices. For those, a second pass (`rsvd_certified`) is the intended route, and it still needs to be benchmarked there.
 
-## Next
+## Shipped in v0.1.1
 
 ### 1. CSR ingestion: `update_csr(A, scale=1.0)`
 - Accept a SciPy CSR matrix directly (int32 or int64 indices, no copy), with `scale=-1.0` to delete a whole block exactly.
 - All input is validated before anything is applied: index ranges, pointer consistency, finite values. A bad input leaves the sketch unchanged.
 - Rows are processed sequentially, which is the natural SciPy and Arrow layout and avoids building COO row arrays.
-- **Status:** in development, not yet tested. Acceptance tests: matches `update_coo` to rounding error, bad input changes nothing, `scale=-1` removes the block.
+- **Status:** shipped in `v0.1.1` (zero-copy `int32`/`int64` CSR ingestion with atomic pre-validation, row-hoisting, `W` prefetching, and NumPy fallback parity).
 - **Expectation:** a partial gain. Measure on large rank (for example 64) against `update_coo` before claiming a speedup.
 
 ### 2. Prefetching in the Python ingestion path
-- The C++ API already prefetches ahead of random accesses. The Python-facing path does not. Add it and measure at large rank.
+- **Status:** shipped in `v0.1.1` (`HSK_PREFETCH_W` wired for MSVC x86/x64 via `_mm_prefetch`, and applied in `Sketch::update_coo` and `Sketch::update_csr` in `native/bindings.cpp`).
 
 ### 3. DuckDB: respect `rank` in `hsk_sketch_svd`
-- Currently the function can return components beyond `rank`, which are mostly noise. Clamp to `rank`, as the Python API does, and remove the "known gap" note from the README.
+- **Status:** shipped in `v0.1.1` (`StreamingLowRank::finalize` now clamps `k` to `min(rank, l)` matching Python's `finalize(k)`, and the "known gap" note has been removed from `README.md`).
 
 ## Later
 

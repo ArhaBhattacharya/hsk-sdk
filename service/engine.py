@@ -47,6 +47,11 @@ _U64 = np.uint64
 _SQRT_2_OVER_PI = math.sqrt(2.0 / math.pi)
 _MMAP_FORMAT = "hsk-mmap-1"
 
+
+def _is_scipy_sparse(A) -> bool:
+    sparray = getattr(sp, "sparray", ())
+    return sp.issparse(A) or isinstance(A, sparray)
+
 __all__ = [
     "BACKEND", "StreamingSketch", "RollingFactorStream", "sketch_to_bytes", "sketch_from_bytes",
     "estimate_sketch_bytes", "rsvd_certified", "adaptive_rsvd", "HybridSketch",
@@ -131,7 +136,7 @@ class HybridSketch:
         """A @ Omega for dense ndarray or scipy sparse A (m x n)."""
         if A.shape[1] != self.n:
             raise ValueError("A.shape[1] != n")
-        if sp.issparse(A):
+        if _is_scipy_sparse(A):
             A = A.tocsr()
         m = A.shape[0]
         out = np.empty((m, self.l))
@@ -140,10 +145,10 @@ class HybridSketch:
             blk = A[r0:r0 + chunk]
             if self.use_cs:
                 Z = blk @ C
-                Z = Z.toarray() if sp.issparse(Z) else np.asarray(Z)
+                Z = Z.toarray() if _is_scipy_sparse(Z) else np.asarray(Z)
             else:
                 Z = np.zeros((blk.shape[0], self.N))
-                Z[:, :self.n] = blk.toarray() if sp.issparse(blk) else blk
+                Z[:, :self.n] = blk.toarray() if _is_scipy_sparse(blk) else blk
             Z = Z * self.d
             out[r0:r0 + blk.shape[0]] = fwht_rows(Z)[:, self.samples] * self.scale
         return out
@@ -220,7 +225,7 @@ def rsvd_certified(A, rank: int, oversample: int = 10, power_iters: int = 1,
     """Two-pass randomized SVD. A: dense ndarray or scipy sparse. -> (U, S, V, certified_spectral_err)."""
     if _native is None:
         return _rsvd_numpy(A, rank, oversample, power_iters, c_factor, seed)
-    if sp.issparse(A):
+    if _is_scipy_sparse(A):
         c = A.tocoo()
         return _native.rsvd_coo(A.shape[0], A.shape[1], c.row.astype(np.int64),
                                 c.col.astype(np.int64), c.data.astype(np.float64),
@@ -285,6 +290,35 @@ def _as_int_array(x, name):
     if a.size and not np.issubdtype(a.dtype, np.integer):
         raise TypeError(f"{name} must be an integer array")
     return a.astype(np.int64, copy=False)
+
+
+def _csr_arrays(A, m: int, n: int):
+    """(indptr, indices, data) of a scipy CSR matrix/array, zero-copy when dtypes already fit."""
+    if not _is_scipy_sparse(A):
+        raise TypeError("update_csr expects a scipy.sparse matrix or array")
+    if A.shape != (m, n):
+        raise ValueError(f"update_csr: shape {A.shape} does not match sketch ({m}, {n})")
+    if A.format != "csr":
+        A = A.tocsr()
+    ip, ix = A.indptr, A.indices
+    if ip.ndim != 1 or ix.ndim != 1 or A.data.ndim != 1:
+        raise ValueError("update_csr: CSR arrays (indptr, indices, data) must be 1-D")
+    if ip.shape[0] != m + 1:
+        raise ValueError("update_csr: CSR indptr length must equal m + 1")
+    if ip.dtype != ix.dtype or ip.dtype not in (np.int32, np.int64):
+        ip = np.ascontiguousarray(ip, dtype=np.int64)
+        ix = np.ascontiguousarray(ix, dtype=np.int64)
+    else:
+        if not ip.flags.c_contiguous:
+            ip = np.ascontiguousarray(ip)
+        if not ix.flags.c_contiguous:
+            ix = np.ascontiguousarray(ix)
+    if ip[0] != 0 or np.any(ip[1:] < ip[:-1]):
+        raise ValueError("update_csr: indptr must start at 0 and be non-decreasing")
+    nnz = int(ip[-1])  # scipy may hold spare capacity past indptr[-1]
+    if nnz > ix.shape[0] or nnz > A.data.shape[0]:
+        raise ValueError("update_csr: indptr[m] exceeds indices/data length")
+    return ip, ix[:nnz], np.ascontiguousarray(A.data[:nnz], dtype=np.float64)
 
 
 class _StreamingBase:
@@ -360,6 +394,14 @@ class _NativeStreaming(_StreamingBase):
     def update_coo(self, I, J, V):
         self.s_.update_coo(_as_int_array(I, "rows"), _as_int_array(J, "cols"),
                            np.ascontiguousarray(V, dtype=np.float64))
+
+    def update_csr(self, A, scale: float = 1.0):
+        """Ingest a scipy CSR matrix: A_ij += scale * A[i, j]. scale=-1.0 deletes the block exactly."""
+        s = float(scale)
+        if not math.isfinite(s):
+            raise ValueError("update_csr: scale must be finite")
+        ip, ix, data = _csr_arrays(A, self.p.m, self.p.n)
+        self.s_.update_csr(ip, ix, data, s)
 
     def update_dense(self, D):
         self.s_.update_dense(np.asarray(D, dtype=np.float64))
@@ -453,6 +495,24 @@ class _NumpyStreaming(_StreamingBase):
             self.Yt += (sp.csr_matrix((v, (i, idx)), shape=(p.m, len(v))) @ self.om.rows(j)).T
             self.W += (sp.csr_matrix((v, (j, idx)), shape=(p.n, len(v))) @ self.psi.rows(i)).T
 
+    def update_csr(self, A, scale: float = 1.0):
+        """Ingest a scipy CSR matrix: A_ij += scale * A[i, j]. scale=-1.0 deletes the block exactly."""
+        s = float(scale)
+        if not math.isfinite(s):
+            raise ValueError("update_csr: scale must be finite")
+        ip, ix, data = _csr_arrays(A, self.p.m, self.p.n)
+        if data.size == 0:
+            return
+        if ix.min() < 0 or ix.max() >= self.p.n:
+            raise IndexError("update_csr: column index outside [0,n)")
+        scaled = data * s
+        if not (np.isfinite(data).all() and np.isfinite(scaled).all()):
+            raise ValueError("update_csr: value must be finite")
+        if s == 0.0:
+            return
+        rows = np.repeat(np.arange(self.p.m, dtype=np.int64), np.diff(ip))
+        self.update_coo(rows, ix, scaled)
+
     def update_dense(self, D):
         D = np.asarray(D, dtype=np.float64)
         if D.shape != (self.p.m, self.p.n) or not np.isfinite(D).all():
@@ -471,7 +531,10 @@ class _NumpyStreaming(_StreamingBase):
         self.W[:] = 0.0
 
     def finalize(self, k):
-        k = max(1, min(int(k), self.p.rank, self.p.l))
+        k = int(k)
+        if k < 1:
+            raise ValueError("finalize: k must be >= 1")
+        k = min(k, self.p.rank, self.p.l)
         Q, _ = np.linalg.qr(self.Yt.T)
         PQ = self.psi.apply(Q.T).T                       # s x l  (= Psi Q)
         X = np.linalg.lstsq(PQ, self.W, rcond=None)[0]   # l x n
