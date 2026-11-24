@@ -17,8 +17,8 @@ Run the command matching your OS (examples shown for **Python 3.12**—replace b
 # Windows (64-bit) — cp312 verified
 python -m pip install https://github.com/ArhaBhattacharya/hsk-sdk/releases/download/v0.1.1/hsk_sdk-0.1.1-cp312-cp312-win_amd64.whl
 
-# Linux (x86_64, glibc >= 2.17) — cp313 verified
-python -m pip install https://github.com/ArhaBhattacharya/hsk-sdk/releases/download/v0.1.1/hsk_sdk-0.1.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+# Linux (x86_64, glibc >= 2.28) — cp313 verified
+python -m pip install https://github.com/ArhaBhattacharya/hsk-sdk/releases/download/v0.1.1/hsk_sdk-0.1.1-cp312-cp312-manylinux_2_28_x86_64.whl
 
 # macOS (Apple Silicon, macOS 11+)
 python -m pip install https://github.com/ArhaBhattacharya/hsk-sdk/releases/download/v0.1.1/hsk_sdk-0.1.1-cp312-cp312-macosx_11_0_arm64.whl
@@ -36,7 +36,7 @@ Prebuilt wheels follow the format `hsk_sdk-0.1.1-<py>-<py>-<platform>.whl`:
 | System | Platform tag | Supported Python tags |
 |---|---|---|
 | Windows (64-bit) | `win_amd64` | `cp39`, `cp310`, `cp311`, `cp312`, `cp313` |
-| Linux (x86_64, glibc ≥ 2.17) | `manylinux_2_17_x86_64.manylinux2014_x86_64` | `cp39`, `cp310`, `cp311`, `cp312`, `cp313` |
+| Linux (x86_64, glibc ≥ 2.28) | `manylinux_2_28_x86_64` | `cp39`, `cp310`, `cp311`, `cp312`, `cp313` |
 | macOS (Apple Silicon, 11+) | `macosx_11_0_arm64` | `cp39`, `cp310`, `cp311`, `cp312`, `cp313` |
 
 *No prebuilt wheels exist for Intel Macs, Linux `aarch64`, Alpine/`musl` Linux, 32-bit Windows, PyPy, or Python 3.14. On those platforms, [build from source](#build-python-sdk-from-source).*
@@ -198,7 +198,7 @@ cmake --build build --config Release --target duckdb_hsk --parallel
 | Symptom | Cause & Fix |
 |---|---|
 | `pip show hsk` returns *not found* | The package name is `hsk-sdk`, not `hsk`, or `pip` points to a different Python environment. Run `python -m pip show -f hsk-sdk`. |
-| `No matching distribution found` / `not a supported wheel` | Either no wheel exists for your OS/architecture (e.g., Intel Mac, Linux `aarch64`, Python 3.14), or `pip` is outdated. Upgrade `pip` (`python -m pip install --upgrade pip`) so it recognizes `manylinux2014` and `macosx_11_0` tags. |
+| `No matching distribution found` / `not a supported wheel` | Either no wheel exists for your OS/architecture (e.g., Intel Mac, Linux `aarch64`, Python 3.14), or `pip` is outdated. Upgrade `pip` (`python -m pip install --upgrade pip`) so it recognizes `manylinux_2_28` and `macosx_11_0` tags. |
 | `404` when installing from a GitHub Release URL | Check the URL path (`/releases/download/v0.1.1/...`), or if accessing a private fork, download the asset via your browser while signed in to GitHub and install the local file. |
 | `hsk.BACKEND` prints `numpy` | The C++ extension failed to load and fell back to pure Python. Run `import hsk.hsk_native` to inspect the import error, or set `HSK_BACKEND=native` before importing to raise a hard error. |
 | Extension fails to load with a version mismatch | Your DuckDB version is not `1.1.2`. Install `duckdb==1.1.2` or use the `v1.1.2` CLI. |

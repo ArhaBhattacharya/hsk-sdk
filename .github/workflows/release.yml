@@ -31,6 +31,7 @@ jobs:
           CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-*"
           CIBW_SKIP: "pp* *-win32 *-manylinux_i686 *-musllinux_*"
           CIBW_ARCHS: auto
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
           CIBW_BUILD_VERBOSITY: 1
           CIBW_BEFORE_ALL_LINUX: git clone --depth 1 --branch 3.4.0 https://gitlab.com/libeigen/eigen.git /tmp/eigen
           CIBW_ENVIRONMENT_LINUX: CMAKE_ARGS="-DHSK_EIGEN_INCLUDE_DIR=/tmp/eigen"
@@ -95,7 +96,10 @@ jobs:
       - name: Configure (macOS)
         if: runner.os == 'macOS'
         run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DHSK_DUCKDB_SOURCE_DIR="${{ github.workspace }}/duckdb-src"
+          command -v ninja >/dev/null || brew install ninja
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DHSK_DUCKDB_SOURCE_DIR="${{ github.workspace }}/duckdb-src"
 
       # DuckDB v1.1.2's third_party/fsst/libfsst.hpp uses uint8_t..uint64_t without including
       # <cstdint>; newer libstdc++ no longer provides it transitively. The inner DuckDB configure
@@ -103,7 +107,8 @@ jobs:
       - name: Build duckdb_hsk
         env:
           CXXFLAGS: ${{ runner.os == 'Linux' && '-include cstdint' || '' }}
-        run: cmake --build build --config Release --target duckdb_hsk --parallel
+          CMAKE_BUILD_PARALLEL_LEVEL: ${{ runner.os == 'macOS' && '3' || '4' }}
+        run: cmake --build build --config Release --target duckdb_hsk
 
       - name: Stage extension binary
         shell: bash
