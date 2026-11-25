@@ -17,8 +17,8 @@ Run the command matching your OS (examples shown for **Python 3.12**—replace b
 # Windows (64-bit) — cp312 verified
 python -m pip install https://github.com/ArhaBhattacharya/hsk-sdk/releases/download/v0.1.1/hsk_sdk-0.1.1-cp312-cp312-win_amd64.whl
 
-# Linux (x86_64, glibc >= 2.28) — cp313 verified
-python -m pip install https://github.com/ArhaBhattacharya/hsk-sdk/releases/download/v0.1.1/hsk_sdk-0.1.1-cp312-cp312-manylinux_2_28_x86_64.whl
+# Linux (x86_64, glibc >= 2.27; modern prebuilt SciPy wheels may require >= 2.28) — cp313 verified
+python -m pip install https://github.com/ArhaBhattacharya/hsk-sdk/releases/download/v0.1.1/hsk_sdk-0.1.1-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
 
 # macOS (Apple Silicon, macOS 11+)
 python -m pip install https://github.com/ArhaBhattacharya/hsk-sdk/releases/download/v0.1.1/hsk_sdk-0.1.1-cp312-cp312-macosx_11_0_arm64.whl
@@ -36,7 +36,7 @@ Prebuilt wheels follow the format `hsk_sdk-0.1.1-<py>-<py>-<platform>.whl`:
 | System | Platform tag | Supported Python tags |
 |---|---|---|
 | Windows (64-bit) | `win_amd64` | `cp39`, `cp310`, `cp311`, `cp312`, `cp313` |
-| Linux (x86_64, glibc ≥ 2.28) | `manylinux_2_28_x86_64` | `cp39`, `cp310`, `cp311`, `cp312`, `cp313` |
+| Linux (x86_64, glibc ≥ 2.27; modern SciPy ≥ 2.28) | `manylinux_2_27_x86_64.manylinux_2_28_x86_64` | `cp39`, `cp310`, `cp311`, `cp312`, `cp313` |
 | macOS (Apple Silicon, 11+) | `macosx_11_0_arm64` | `cp39`, `cp310`, `cp311`, `cp312`, `cp313` |
 
 *No prebuilt wheels exist for Intel Macs, Linux `aarch64`, Alpine/`musl` Linux, 32-bit Windows, PyPy, or Python 3.14. On those platforms, [build from source](#build-python-sdk-from-source).*
@@ -90,16 +90,22 @@ If `hsk.BACKEND` prints `numpy`, the native module failed to import—see [Troub
 > [!WARNING]
 > **Exact DuckDB version required (`v1.1.2`):** Loadable C++ extensions are compiled against a specific DuckDB release and will refuse to load in any other version. Ensure you are running `duckdb==1.1.2`.
 
-### 1. Download and rename (Windows x64)
+### 1. Download and rename
 
-DuckDB derives the extension entry point from its **filename**, so the downloaded asset (`hsk-Windows.duckdb_extension`, ~21 MB) **must be renamed to `hsk.duckdb_extension`**.
+All three DuckDB `v1.1.2` binaries (`hsk-Windows.duckdb_extension`, `hsk-Linux.duckdb_extension`, `hsk-macOS.duckdb_extension`) are attached directly to the [v0.1.1 GitHub Release](https://github.com/ArhaBhattacharya/hsk-sdk/releases/tag/v0.1.1). DuckDB derives the extension entry point from its **filename**, so the downloaded asset **must be renamed to `hsk.duckdb_extension`**.
 
 ```powershell
-# Download and save with the required filename in one step
+# Windows (64-bit)
 Invoke-WebRequest -Uri "https://github.com/ArhaBhattacharya/hsk-sdk/releases/download/v0.1.1/hsk-Windows.duckdb_extension" -OutFile hsk.duckdb_extension
 ```
 
-*(Linux `x86_64` and macOS `arm64` builds are available in the [CI workflow artifacts](#ci-artifacts-fallback); unzip and rename `hsk-Linux.duckdb_extension` or `hsk-macOS.duckdb_extension` to `hsk.duckdb_extension`.)*
+```bash
+# Linux (x86_64)
+curl -fL "https://github.com/ArhaBhattacharya/hsk-sdk/releases/download/v0.1.1/hsk-Linux.duckdb_extension" -o hsk.duckdb_extension
+
+# macOS (Apple Silicon, arm64)
+curl -fL "https://github.com/ArhaBhattacharya/hsk-sdk/releases/download/v0.1.1/hsk-macOS.duckdb_extension" -o hsk.duckdb_extension
+```
 
 ### 2. Load and verify
 
@@ -198,7 +204,7 @@ cmake --build build --config Release --target duckdb_hsk --parallel
 | Symptom | Cause & Fix |
 |---|---|
 | `pip show hsk` returns *not found* | The package name is `hsk-sdk`, not `hsk`, or `pip` points to a different Python environment. Run `python -m pip show -f hsk-sdk`. |
-| `No matching distribution found` / `not a supported wheel` | Either no wheel exists for your OS/architecture (e.g., Intel Mac, Linux `aarch64`, Python 3.14), or `pip` is outdated. Upgrade `pip` (`python -m pip install --upgrade pip`) so it recognizes `manylinux_2_28` and `macosx_11_0` tags. |
+| `No matching distribution found` / `not a supported wheel` | Either no wheel exists for your OS/architecture (e.g., Intel Mac, Linux `aarch64`, Python 3.14), or `pip` is outdated. Upgrade `pip` (`python -m pip install --upgrade pip`) so it recognizes `manylinux_2_27` / `manylinux_2_28` and `macosx_11_0` tags. |
 | `404` when installing from a GitHub Release URL | Check the URL path (`/releases/download/v0.1.1/...`), or if accessing a private fork, download the asset via your browser while signed in to GitHub and install the local file. |
 | `hsk.BACKEND` prints `numpy` | The C++ extension failed to load and fell back to pure Python. Run `import hsk.hsk_native` to inspect the import error, or set `HSK_BACKEND=native` before importing to raise a hard error. |
 | Extension fails to load with a version mismatch | Your DuckDB version is not `1.1.2`. Install `duckdb==1.1.2` or use the `v1.1.2` CLI. |
@@ -212,7 +218,7 @@ cmake --build build --config Release --target duckdb_hsk --parallel
 | `Binder Error: No function matches ... hsk_sketch_agg(..., INTEGER)` | The `seed` argument requires `UBIGINT` and DuckDB does not implicitly cast `INTEGER`. Cast explicitly: `42::UBIGINT`. |
 | `argument 'm' must be a constant expression` (also `n`, `rank`, `seed`) | Dimension, rank, and seed parameters must be literal constants rather than column references. |
 | `sketch would need N bytes, above the limit` | Sketch size exceeds the default `1 GiB` per-sketch cap. Reduce `m`, `n`, or `rank`, or increase `HSK_MAX_SKETCH_BYTES` (hard cap: `3500 MiB`). |
-| Binary blob interoperability | The native Python backend and DuckDB extension share the `HSK1` binary sketch format (cross-OS blob exchange is untested). The pure-Python `numpy` fallback uses a different RNG and cannot read, write, or merge `HSK1` blobs. Sketches only merge when `(m, n, rank, seed)` match. |
+| Binary blob interoperability | The native Python backend and DuckDB extension share the `HSK1` binary sketch format (cross-OS blob exchange is untested). The pure-Python `numpy` fallback uses a different RNG and cannot read, write, or merge `HSK1` blobs. Sketches only merge when `(m, n, rank, seed, oversample, core_factor, c_factor)` match (DuckDB hardcodes `c_factor = 8.0`, `oversample = 10`, and `core_factor = 4.0`). |
 
 ---
 
@@ -222,18 +228,18 @@ The `v0.1.1` release artifacts are built from the `v0.1.1` git tag (or CI releas
 
 | Component | Verification Status | Notes |
 |---|---|---|
-| **Windows x64, Python 3.12** wheel | **Tested** | Verified locally by maintainer |
-| Windows x64, Python 3.9–3.11, 3.13 wheels | Built by CI | Packaged in Release; not yet runtime-tested |
-| **Linux `x86_64` (`manylinux`), Python 3.13** wheel | **Tested** | Verified on Python 3.13.18 (Google Colab) |
-| Linux `x86_64` (`manylinux`), Python 3.9–3.12 wheels | Built by CI | Packaged in Release; not yet runtime-tested |
-| macOS `arm64`, Python 3.9–3.13 wheels | Built by CI | Packaged in Release; not yet runtime-tested |
-| **DuckDB extension, Windows x64 (`v1.1.2`)** | **Tested** | Verified locally by maintainer |
-| DuckDB extension, Linux `x86_64` (`v1.1.2`) | Built by CI | Available in GitHub Actions artifacts only; not yet runtime-tested |
-| DuckDB extension, macOS `arm64` (`v1.1.2`) | Built by CI | Available in GitHub Actions artifacts only; not yet runtime-tested |
+| **Windows x64, Python 3.12** wheel | **CI-tested + Tested** | Tested in CI (`hsk.BACKEND == 'native'` + `pytest tests/test_core_priorities.py`) and verified locally by maintainer |
+| Windows x64, Python 3.9–3.11, 3.13 wheels | **CI-tested** | Built and tested in CI with `hsk.BACKEND == 'native'` and `pytest tests/test_core_priorities.py` |
+| **Linux `x86_64` (`manylinux`), Python 3.13** wheel | **CI-tested + Tested** | Tested in CI (`hsk.BACKEND == 'native'` + `pytest tests/test_core_priorities.py`) and verified on Python 3.13.18 (Google Colab) |
+| Linux `x86_64` (`manylinux`), Python 3.9–3.12 wheels | **CI-tested** | Built and tested in CI with `hsk.BACKEND == 'native'` and `pytest tests/test_core_priorities.py` |
+| macOS `arm64`, Python 3.9–3.13 wheels | **CI-tested** | Built and tested in CI with `hsk.BACKEND == 'native'` and `pytest tests/test_core_priorities.py` |
+| **DuckDB extension, Windows x64 (`v1.1.2`)** | **Tested** | Packaged in Release; verified locally by maintainer |
+| DuckDB extension, Linux `x86_64` (`v1.1.2`) | **Packaged in Release** | CI-built and attached to `v0.1.1` Release; not yet runtime-tested |
+| DuckDB extension, macOS `arm64` (`v1.1.2`) | **Packaged in Release** | CI-built and attached to `v0.1.1` Release; not yet runtime-tested |
 | Python 3.14 | Not built | Source build is untested |
 
 ### CI Artifacts Fallback
 
-If you need the Linux/macOS DuckDB extension or an unreleased build, download the zipped artifacts from a [Release workflow run](https://github.com/ArhaBhattacharya/hsk-sdk/actions/workflows/release.yml) (requires GitHub sign-in; artifacts expire after the repository retention window):
+All `v0.1.1` binaries (15 wheels and 3 DuckDB extensions) are attached directly to the [v0.1.1 GitHub Release](https://github.com/ArhaBhattacharya/hsk-sdk/releases/tag/v0.1.1). For unreleased `main` builds, download the zipped artifacts from a [Release workflow run](https://github.com/ArhaBhattacharya/hsk-sdk/actions/workflows/release.yml) (requires GitHub sign-in; artifacts expire after the repository retention window):
 * `wheels-windows-latest`, `wheels-ubuntu-latest`, `wheels-macos-latest`
 * `duckdb-extension-Windows`, `duckdb-extension-Linux`, `duckdb-extension-macOS`

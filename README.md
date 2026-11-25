@@ -37,11 +37,14 @@ Matrix_Sketching_foundations.ipynb  NumPy/SciPy prototype of HMT & CountSketch (
 
 See the full **[Installation Guide](docs/installation.md)** for platform details, checksums, DuckDB setup, and source builds.
 
-Prebuilt wheels (CPython 3.9–3.13; Windows `cp312` and Linux `x86_64` `cp313` verified) and the DuckDB v1.1.2 extension are attached to the [v0.1.1 GitHub Release](https://github.com/ArhaBhattacharya/hsk-sdk/releases/tag/v0.1.1) (not yet published to PyPI):
+Prebuilt wheels (CPython 3.9–3.13; all 15 CI-tested, with Windows `cp312` and Linux `x86_64` `cp313` additionally runtime-verified) and the DuckDB v1.1.2 extensions (Windows, Linux, macOS) are attached to the [v0.1.1 GitHub Release](https://github.com/ArhaBhattacharya/hsk-sdk/releases/tag/v0.1.1) (not yet published to PyPI):
 
 ```bash
 # Example: Windows 64-bit, Python 3.12
 python -m pip install https://github.com/ArhaBhattacharya/hsk-sdk/releases/download/v0.1.1/hsk_sdk-0.1.1-cp312-cp312-win_amd64.whl
+
+# Example: Linux x86_64, Python 3.12 (wheel tag glibc >= 2.27; modern SciPy may require >= 2.28)
+python -m pip install https://github.com/ArhaBhattacharya/hsk-sdk/releases/download/v0.1.1/hsk_sdk-0.1.1-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
 ```
 
 Prebuilt wheel users do not need Eigen 3.4 or a C++ compiler installed. Only source builds require Eigen 3.4 (and a C++17 compiler) to already be available because `HSK_FETCH_EIGEN=OFF`.
@@ -119,7 +122,7 @@ Notes:
 
 ## DuckDB extension
 
-Compiled against **DuckDB v1.1.2** (C++ extension API). Rename the downloaded release binary to `hsk.duckdb_extension` and load it with unsigned extensions enabled (`duckdb -unsigned` or `allow_unsigned_extensions=true`):
+Compiled against **DuckDB v1.1.2** (C++ extension API). Prebuilt binaries for Windows, Linux, and macOS are attached to the [v0.1.1 GitHub Release](https://github.com/ArhaBhattacharya/hsk-sdk/releases/tag/v0.1.1). Rename the downloaded release binary to `hsk.duckdb_extension` and load it with unsigned extensions enabled (`duckdb -unsigned` or `allow_unsigned_extensions=true`):
 
 ```sql
 LOAD '/path/to/hsk.duckdb_extension';
@@ -178,7 +181,7 @@ Single runs on a laptop with synthetic data (random indices for throughput rows;
 - **Memmap recovery:** `RollingFactorStream` keeps its tick history in memory only; reopening a memmap sketch restores the sketch state but not the sliding window. Memmap writes go through the OS page cache and `flush()`, so take periodic `to_bytes()` snapshots if crash recovery is required.
 - **Thread safety:** Sketches are not thread-safe for concurrent mutation.
 - **RNG & platform portability:** Native sketches derive hashes, signs, and sampled Hadamard rows from `SplitMix64`, making `HSK1` blobs reproducible across compilers and OSes. The NumPy fallback uses `np.random.default_rng` and is incompatible. The certified error bound in `rsvd_certified` uses `std::mt19937_64` and `std::normal_distribution`, which may vary slightly across standard libraries.
-- **Platform verification:** Windows x64 (Python 3.12), Linux x86_64 (Python 3.13), and the Windows DuckDB v1.1.2 extension have been runtime-tested; remaining Python wheels (CPython 3.9–3.13 across Windows, Linux, and macOS) and the Linux/macOS DuckDB extensions are built by CI (`.github/workflows/release.yml`) and awaiting runtime verification.
+- **Platform verification:** All 15 Python wheels (CPython 3.9–3.13 across Windows x64, Linux `x86_64`, and macOS `arm64`) are CI-tested (`hsk.BACKEND == 'native'` + `pytest tests/test_core_priorities.py`) via `.github/workflows/release.yml`; Windows x64 (Python 3.12), Linux `x86_64` (Python 3.13), and the Windows DuckDB v1.1.2 extension have additionally been runtime-tested locally/in Colab, while the Linux and macOS DuckDB v1.1.2 extensions are packaged in the `v0.1.1` GitHub Release and awaiting runtime verification.
 
 ## License
 
