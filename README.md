@@ -122,7 +122,7 @@ Notes:
 
 ## DuckDB extension
 
-Compiled against **DuckDB v1.1.2** (C++ extension API). Prebuilt binaries for Windows, Linux, and macOS are attached to the [v0.1.1 GitHub Release](https://github.com/ArhaBhattacharya/hsk-sdk/releases/tag/v0.1.1). Rename the downloaded release binary to `hsk.duckdb_extension` and load it with unsigned extensions enabled (`duckdb -unsigned` or `allow_unsigned_extensions=true`):
+Compiled against **DuckDB v1.1.2** (C++ extension API). Prebuilt binaries for Windows, Linux (`linux_amd64_gcc4`, matching official Linux `duckdb==1.1.2` Python wheels and CLI), and macOS are attached to the [v0.1.1 GitHub Release](https://github.com/ArhaBhattacharya/hsk-sdk/releases/tag/v0.1.1). Rename the downloaded release binary to `hsk.duckdb_extension` and load it with unsigned extensions enabled (`duckdb -unsigned` or `allow_unsigned_extensions=true`):
 
 ```sql
 LOAD '/path/to/hsk.duckdb_extension';
@@ -181,7 +181,7 @@ Single runs on a laptop with synthetic data (random indices for throughput rows;
 - **Memmap recovery:** `RollingFactorStream` keeps its tick history in memory only; reopening a memmap sketch restores the sketch state but not the sliding window. Memmap writes go through the OS page cache and `flush()`, so take periodic `to_bytes()` snapshots if crash recovery is required.
 - **Thread safety:** Sketches are not thread-safe for concurrent mutation.
 - **RNG & platform portability:** Native sketches derive hashes, signs, and sampled Hadamard rows from `SplitMix64`, making `HSK1` blobs reproducible across compilers and OSes. The NumPy fallback uses `np.random.default_rng` and is incompatible. The certified error bound in `rsvd_certified` uses `std::mt19937_64` and `std::normal_distribution`, which may vary slightly across standard libraries.
-- **Platform verification:** All 15 Python wheels (CPython 3.9–3.13 across Windows x64, Linux `x86_64`, and macOS `arm64`) are CI-tested (`hsk.BACKEND == 'native'` + `pytest tests/test_core_priorities.py`) via `.github/workflows/release.yml`; Windows x64 (Python 3.12), Linux `x86_64` (Python 3.13), and the Windows DuckDB v1.1.2 extension have additionally been runtime-tested locally/in Colab, while the Linux and macOS DuckDB v1.1.2 extensions are packaged in the `v0.1.1` GitHub Release and awaiting runtime verification.
+- **Platform verification:** All 15 Python wheels (CPython 3.9–3.13 across Windows x64, Linux `x86_64`, and macOS `arm64`) are CI-tested (`hsk.BACKEND == 'native'` + `pytest tests/test_core_priorities.py`), and all 3 DuckDB `v1.1.2` extensions (Windows x64, Linux `x86_64` `linux_amd64_gcc4`, macOS `arm64`) are CI-tested against `duckdb==1.1.2` (`LOAD`, `hsk_sketch_agg`, `hsk_sketch_svd`) via `.github/workflows/release.yml`; Windows x64 (Python 3.12), Linux `x86_64` (Python 3.13), and the Windows DuckDB `v1.1.2` extension have additionally been runtime-tested locally/in Colab.
 
 ## License
 

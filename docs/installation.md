@@ -92,7 +92,7 @@ If `hsk.BACKEND` prints `numpy`, the native module failed to import—see [Troub
 
 ### 1. Download and rename
 
-All three DuckDB `v1.1.2` binaries (`hsk-Windows.duckdb_extension`, `hsk-Linux.duckdb_extension`, `hsk-macOS.duckdb_extension`) are attached directly to the [v0.1.1 GitHub Release](https://github.com/ArhaBhattacharya/hsk-sdk/releases/tag/v0.1.1). DuckDB derives the extension entry point from its **filename**, so the downloaded asset **must be renamed to `hsk.duckdb_extension`**.
+All three DuckDB `v1.1.2` binaries (`hsk-Windows.duckdb_extension`, `hsk-Linux.duckdb_extension`, `hsk-macOS.duckdb_extension`) are attached directly to the [v0.1.1 GitHub Release](https://github.com/ArhaBhattacharya/hsk-sdk/releases/tag/v0.1.1). The Linux binary targets `linux_amd64_gcc4` (matching official Linux `duckdb==1.1.2` Python wheels and CLI). DuckDB derives the extension entry point from its **filename**, so the downloaded asset **must be renamed to `hsk.duckdb_extension`**.
 
 ```powershell
 # Windows (64-bit)
@@ -233,9 +233,9 @@ The `v0.1.1` release artifacts are built from the `v0.1.1` git tag (or CI releas
 | **Linux `x86_64` (`manylinux`), Python 3.13** wheel | **CI-tested + Tested** | Tested in CI (`hsk.BACKEND == 'native'` + `pytest tests/test_core_priorities.py`) and verified on Python 3.13.18 (Google Colab) |
 | Linux `x86_64` (`manylinux`), Python 3.9–3.12 wheels | **CI-tested** | Built and tested in CI with `hsk.BACKEND == 'native'` and `pytest tests/test_core_priorities.py` |
 | macOS `arm64`, Python 3.9–3.13 wheels | **CI-tested** | Built and tested in CI with `hsk.BACKEND == 'native'` and `pytest tests/test_core_priorities.py` |
-| **DuckDB extension, Windows x64 (`v1.1.2`)** | **Tested** | Packaged in Release; verified locally by maintainer |
-| DuckDB extension, Linux `x86_64` (`v1.1.2`) | **Packaged in Release** | CI-built and attached to `v0.1.1` Release; not yet runtime-tested |
-| DuckDB extension, macOS `arm64` (`v1.1.2`) | **Packaged in Release** | CI-built and attached to `v0.1.1` Release; not yet runtime-tested |
+| **DuckDB extension, Windows x64 (`v1.1.2`)** | **CI-tested + Tested** | CI-tested against `duckdb==1.1.2` (`LOAD`, `hsk_sketch_agg`, `hsk_sketch_svd`) and verified locally by maintainer |
+| DuckDB extension, Linux `x86_64` (`v1.1.2`) | **CI-tested** | Targets `linux_amd64_gcc4` (matching official Linux `duckdb==1.1.2` Python wheels and CLI); CI-tested against `duckdb==1.1.2` (`LOAD`, `hsk_sketch_agg`, `hsk_sketch_svd`) |
+| DuckDB extension, macOS `arm64` (`v1.1.2`) | **CI-tested** | CI-tested against `duckdb==1.1.2` (`LOAD`, `hsk_sketch_agg`, `hsk_sketch_svd`) |
 | Python 3.14 | Not built | Source build is untested |
 
 ### CI Artifacts Fallback
