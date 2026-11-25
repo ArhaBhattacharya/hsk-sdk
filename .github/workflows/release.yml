@@ -102,11 +102,12 @@ jobs:
             -DHSK_DUCKDB_SOURCE_DIR="${{ github.workspace }}/duckdb-src"
 
       # DuckDB v1.1.2's third_party/fsst/libfsst.hpp uses uint8_t..uint64_t without including
-      # <cstdint>; newer libstdc++ no longer provides it transitively. The inner DuckDB configure
-      # (run by the duckdb_hsk target in a fresh build dir) seeds CMAKE_CXX_FLAGS from CXXFLAGS.
+      # <cstdint>; newer libstdc++ no longer provides it transitively. Official Linux DuckDB v1.1.2
+      # binaries also use _GLIBCXX_USE_CXX11_ABI=0 (linux_amd64_gcc4), whereas ubuntu-latest
+      # defaults to ABI=1 (linux_amd64). The inner DuckDB configure seeds CMAKE_CXX_FLAGS from CXXFLAGS.
       - name: Build duckdb_hsk
         env:
-          CXXFLAGS: ${{ runner.os == 'Linux' && '-include cstdint' || '' }}
+          CXXFLAGS: ${{ runner.os == 'Linux' && '-include cstdint -D_GLIBCXX_USE_CXX11_ABI=0' || '' }}
           CMAKE_BUILD_PARALLEL_LEVEL: ${{ runner.os == 'macOS' && '3' || '4' }}
         run: cmake --build build --config Release --target duckdb_hsk
 
@@ -123,6 +124,54 @@ jobs:
           fi
           cp "${found}" "dist-ext/hsk-${{ runner.os }}.duckdb_extension"
           ls -la dist-ext
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Smoke-test extension
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet --only-binary=duckdb "duckdb==1.1.2"
+          python - <<'PY'
+          import pathlib
+          import shutil
+          import tempfile
+          import duckdb
+
+          src = pathlib.Path("dist-ext/hsk-${{ runner.os }}.duckdb_extension")
+          tmp = pathlib.Path(tempfile.mkdtemp())
+          try:
+              dst = tmp / "hsk.duckdb_extension"
+              shutil.copy2(src, dst)
+              con = duckdb.connect(config={"allow_unsigned_extensions": "true"})
+              print("PRAGMA platform:", con.execute("PRAGMA platform").fetchall())
+              con.execute(f"LOAD '{dst.as_posix()}'")
+              con.execute("""
+                  CREATE TABLE e AS
+                  SELECT (i % 1000)::BIGINT r, ((i * 7) % 500)::BIGINT c, (i % 13)::DOUBLE v
+                  FROM range(100000) t(i);
+              """)
+              ok = con.execute(
+                  "SELECT hsk_sketch_agg(r, c, v, 1000, 500, 5, 42::UBIGINT) IS NOT NULL FROM e;"
+              ).fetchone()
+              assert ok == (True,), f"Unexpected agg result: {ok}"
+              rows_5 = con.execute("""
+                  WITH s AS (SELECT hsk_sketch_agg(r, c, v, 1000, 500, 5, 42::UBIGINT) sk FROM e)
+                  SELECT t.component_idx, t.singular_value FROM s, LATERAL hsk_sketch_svd(s.sk, 5) t;
+              """).fetchall()
+              assert len(rows_5) == 5, f"Expected 5 rows for k=5, got {len(rows_5)}"
+              rows_clamped = con.execute("""
+                  WITH s AS (SELECT hsk_sketch_agg(r, c, v, 1000, 500, 5, 42::UBIGINT) sk FROM e)
+                  SELECT t.component_idx, t.singular_value FROM s, LATERAL hsk_sketch_svd(s.sk, 999) t;
+              """).fetchall()
+              assert len(rows_clamped) == 5, f"Expected 5 rows for k=999 (clamped), got {len(rows_clamped)}"
+              con.close()
+              print("Smoke test passed:", len(rows_5), "rows (k=5),", len(rows_clamped), "rows (k=999 clamped)")
+          finally:
+              shutil.rmtree(tmp, ignore_errors=True)
+          PY
 
       - uses: actions/upload-artifact@v4
         with:
