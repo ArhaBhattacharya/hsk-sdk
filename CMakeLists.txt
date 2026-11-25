@@ -158,9 +158,16 @@ elseif(HSK_BUILD_DUCKDB_EXTENSION AND HSK_DUCKDB_SOURCE_DIR)
     list(APPEND HSK_INNER_GEN_ARGS -T "${CMAKE_GENERATOR_TOOLSET}")
   endif()
 
+  set(HSK_INNER_EXTRA_ARGS)
+  if(UNIX AND NOT APPLE)
+    # Official Linux DuckDB Python wheels hide DuckDB C++ symbols (RTLD_LOCAL), so statically link DuckDB into the extension.
+    list(APPEND HSK_INNER_EXTRA_ARGS -DEXTENSION_STATIC_BUILD=1)
+  endif()
+
   add_custom_target(duckdb_hsk
     COMMAND ${CMAKE_COMMAND}
             ${HSK_INNER_GEN_ARGS}
+            ${HSK_INNER_EXTRA_ARGS}
             -S "${HSK_DUCKDB_SOURCE_DIR}" -B "${HSK_DUCKDB_BUILD_DIR}"
             -DCMAKE_BUILD_TYPE=Release
             -DCMAKE_CXX_STANDARD=17
