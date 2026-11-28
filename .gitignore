@@ -9,6 +9,7 @@ __pycache__/
 artifacts/
 desktop.ini
 demo/
+docs_more/
 temp/
 cmake-build-*/
 .idea/
