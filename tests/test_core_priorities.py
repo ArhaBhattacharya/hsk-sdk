@@ -116,3 +116,42 @@ def test_finalize_clamps_k_to_rank():
 
     with pytest.raises(ValueError):
         sk.finalize(0)
+
+
+@pytest.mark.skipif(hsk.BACKEND != "native", reason="HSK1 blobs require native backend")
+def test_corrupt_blob_raises_expected_errors():
+    sk = hsk.StreamingSketch(50, 40, rank=4, seed=1)
+    sk.update_coo([0, 1], [2, 3], [1.5, -2.0])
+    blob = sk.to_bytes()
+
+    target = hsk.StreamingSketch(50, 40, rank=4, seed=1)
+    target.update_coo([4], [5], [3.0])
+    yt_before = target.yt.copy()
+    w_before = target.w.copy()
+
+    # Truncated header/payload or bad magic -> ValueError
+    for bad_header in (blob[:40], blob[:-1], b"XXXX" + blob[4:]):
+        with pytest.raises(ValueError):
+            hsk.StreamingSketch.from_bytes(bad_header)
+        with pytest.raises(ValueError):
+            target.load_bytes(bad_header)
+        with pytest.raises(ValueError):
+            target.merge_bytes(bad_header)
+        with pytest.raises(ValueError):
+            hsk.StreamingSketch.inspect_bytes(bad_header)
+
+    # Flipped payload byte (after 88-byte header) -> RuntimeError (checksum mismatch)
+    flipped = bytearray(blob)
+    flipped[96] ^= 0xFF
+    bad_payload = bytes(flipped)
+    with pytest.raises(RuntimeError):
+        hsk.StreamingSketch.from_bytes(bad_payload)
+    with pytest.raises(RuntimeError):
+        target.load_bytes(bad_payload)
+    with pytest.raises(RuntimeError):
+        target.merge_bytes(bad_payload)
+
+    # Failed load_bytes/merge_bytes must leave target sketch untouched
+    np.testing.assert_array_equal(target.yt, yt_before)
+    np.testing.assert_array_equal(target.w, w_before)
+

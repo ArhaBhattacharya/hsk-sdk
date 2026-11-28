@@ -190,6 +190,8 @@ CMAKE_ARGS="-DHSK_EIGEN_INCLUDE_DIR=/path/to/eigen" python -m pip wheel . --no-b
 
 ```bash
 git clone --depth 1 --branch v1.1.2 https://github.com/duckdb/duckdb.git ~/duckdb
+# On Linux (GCC 13+ / matching official duckdb==1.1.2 linux_amd64_gcc4 ABI):
+export CXXFLAGS="-include cstdint -D_GLIBCXX_USE_CXX11_ABI=0"
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DHSK_DUCKDB_SOURCE_DIR=$HOME/duckdb
 cmake --build build --config Release --target duckdb_hsk --parallel
 # Output: build/duckdb-build/extension/hsk/hsk.duckdb_extension (already named properly)
