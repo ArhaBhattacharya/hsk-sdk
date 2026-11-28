@@ -3,7 +3,7 @@
 Install the **`hsk`** Python SDK or DuckDB extension for certified randomized SVD and matrix sketching.
 
 > [!NOTE]
-> **Pre-release (`v0.1.1`):** `hsk-sdk` is not yet published to PyPI. Prebuilt binaries are hosted on the [v0.1.1 GitHub Release](https://github.com/ArhaBhattacharya/hsk-sdk/releases/tag/v0.1.1). The distribution name for `pip` is **`hsk-sdk`**, while the Python import name is **`hsk`**. Prebuilt wheel users do **not** need Eigen 3.4 or a C++ compiler installed.
+> **Pre-release (`v0.1.1`):** `hsk-sdk` is not yet published to PyPI. Prebuilt binaries are hosted on the [v0.1.1 GitHub Release](https://github.com/ArhaBhattacharya/hsk-sdk/releases/tag/v0.1.1). The distribution name for `pip` is **`hsk-sdk`**, while the Python import name is **`hsk`**. Prebuilt wheel users do **not** need Eigen or a C++ compiler installed.
 
 ---
 
@@ -14,13 +14,13 @@ Install the **`hsk`** Python SDK or DuckDB extension for certified randomized SV
 Run the command matching your OS (examples shown for **Python 3.12**—replace both instances of `cp312` with `cp39`, `cp310`, `cp311`, or `cp313` to match your interpreter):
 
 ```bash
-# Windows (64-bit) — cp312 verified
+# Windows (64-bit) — cp312 live-verified
 python -m pip install https://github.com/ArhaBhattacharya/hsk-sdk/releases/download/v0.1.1/hsk_sdk-0.1.1-cp312-cp312-win_amd64.whl
 
-# Linux (x86_64, glibc >= 2.27; modern prebuilt SciPy wheels may require >= 2.28) — cp313 verified
+# Linux (x86_64, glibc >= 2.27; modern prebuilt SciPy wheels may require >= 2.28) — cp313 live-verified
 python -m pip install https://github.com/ArhaBhattacharya/hsk-sdk/releases/download/v0.1.1/hsk_sdk-0.1.1-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
 
-# macOS (Apple Silicon, macOS 11+)
+# macOS (Apple Silicon, macOS 11+) — cp312 live-verified
 python -m pip install https://github.com/ArhaBhattacharya/hsk-sdk/releases/download/v0.1.1/hsk_sdk-0.1.1-cp312-cp312-macosx_11_0_arm64.whl
 ```
 
@@ -39,7 +39,7 @@ Prebuilt wheels follow the format `hsk_sdk-0.1.1-<py>-<py>-<platform>.whl`:
 | Linux (x86_64, glibc ≥ 2.27; modern SciPy ≥ 2.28) | `manylinux_2_27_x86_64.manylinux_2_28_x86_64` | `cp39`, `cp310`, `cp311`, `cp312`, `cp313` |
 | macOS (Apple Silicon, 11+) | `macosx_11_0_arm64` | `cp39`, `cp310`, `cp311`, `cp312`, `cp313` |
 
-*No prebuilt wheels exist for Intel Macs, Linux `aarch64`, Alpine/`musl` Linux, 32-bit Windows, PyPy, or Python 3.14. On those platforms, [build from source](#build-python-sdk-from-source).*
+*No prebuilt wheels exist yet for Intel Macs, Linux `aarch64`, Windows `arm64`, Alpine/`musl` Linux, 32-bit Windows, PyPy, Python 3.14, or Python 3.15 (Python 3.14/3.15 and ARM64 Linux/Windows runners are planned for `v0.2.0`). On unsupported platforms, [build from source](#build-python-sdk-from-source).*
 
 #### Installing from a local download or offline folder
 If you downloaded the `.whl` file manually:
@@ -155,12 +155,12 @@ SELECT t.component_idx, t.singular_value FROM s, LATERAL hsk_sketch_svd(s.sk, 5)
 | Component | Python Wheel | DuckDB Extension |
 |---|---|---|
 | **Compiler & Build** | C++17 compiler, CMake ≥ 3.15 | C++17 compiler, CMake ≥ 3.15 |
-| **Dependencies** | Eigen ≥ 3.3 (CI uses `3.4.0`), `numpy>=1.23`, `scipy>=1.9` | Eigen ≥ 3.3, DuckDB `v1.1.2` source tree |
-| **Python** | 3.9 – 3.13 (3.14 untested) | Optional (only if driving DuckDB via Python) |
+| **Dependencies** | Eigen ≥ 3.3 (CI uses `3.4.0`), `numpy>=1.23`, `scipy>=1.9` | Eigen ≥ 3.3 (CI uses `3.4.0`), DuckDB `v1.1.2` source tree |
+| **Python** | 3.9 – 3.13 (3.14 & 3.15 unbuilt; planned for `v0.2.0`) | Optional (only if driving DuckDB via Python) |
 
 ### Build Python SDK from source
 
-Prebuilt wheel users do not need Eigen 3.4 or a C++ compiler installed. Only source builds require Eigen 3.4 (and a C++17 compiler) to already be available unless Eigen is installed system-wide via CMake's `find_package(Eigen3)`, because `pyproject.toml` sets `HSK_FETCH_EIGEN=OFF`.
+Prebuilt wheel users do not need Eigen or a C++ compiler installed. The C++ headers require **Eigen ≥ 3.3** (`3.4.0` is used in CI and CMake `FetchContent`). Only `pyproject.toml` Python source/wheel builds require Eigen to already be available unless installed system-wide via CMake's `find_package(Eigen3)`, because `pyproject.toml` sets `HSK_FETCH_EIGEN=OFF` (standalone CMake SDK and DuckDB extension builds default to `HSK_FETCH_EIGEN=ON`).
 
 ```bash
 # Linux / macOS
@@ -186,7 +186,7 @@ CMAKE_ARGS="-DHSK_EIGEN_INCLUDE_DIR=/path/to/eigen" python -m pip wheel . --no-b
 ### Build DuckDB extension from source
 
 > [!NOTE]
-> Compiling DuckDB from source is resource-intensive (CI allows up to 2 hours). CMake will use a system Eigen installation (`-DHSK_EIGEN_INCLUDE_DIR=<dir>`) or download it automatically.
+> Compiling DuckDB from source is resource-intensive (CI allows up to 2 hours). CMake defaults to `HSK_FETCH_EIGEN=ON`, so it will use a system Eigen `>= 3.3` installation, `-DHSK_EIGEN_INCLUDE_DIR=<dir>`, or download Eigen `3.4.0` automatically.
 
 ```bash
 git clone --depth 1 --branch v1.1.2 https://github.com/duckdb/duckdb.git ~/duckdb
@@ -204,7 +204,7 @@ cmake --build build --config Release --target duckdb_hsk --parallel
 | Symptom | Cause & Fix |
 |---|---|
 | `pip show hsk` returns *not found* | The package name is `hsk-sdk`, not `hsk`, or `pip` points to a different Python environment. Run `python -m pip show -f hsk-sdk`. |
-| `No matching distribution found` / `not a supported wheel` | Either no wheel exists for your OS/architecture (e.g., Intel Mac, Linux `aarch64`, Python 3.14), or `pip` is outdated. Upgrade `pip` (`python -m pip install --upgrade pip`) so it recognizes `manylinux_2_27` / `manylinux_2_28` and `macosx_11_0` tags. |
+| `No matching distribution found` / `not a supported wheel` | Either no wheel exists for your OS/architecture (e.g., Intel Mac, Linux `aarch64`, Windows `arm64`, Python 3.14/3.15), or `pip` is outdated. Upgrade `pip` (`python -m pip install --upgrade pip`) so it recognizes `manylinux_2_27` / `manylinux_2_28` and `macosx_11_0` tags. |
 | `404` when installing from a GitHub Release URL | Check the URL path (`/releases/download/v0.1.1/...`), or if accessing a private fork, download the asset via your browser while signed in to GitHub and install the local file. |
 | `hsk.BACKEND` prints `numpy` | The C++ extension failed to load and fell back to pure Python. Run `import hsk.hsk_native` to inspect the import error, or set `HSK_BACKEND=native` before importing to raise a hard error. |
 | Extension fails to load with a version mismatch | Your DuckDB version is not `1.1.2`. Install `duckdb==1.1.2` or use the `v1.1.2` CLI. |
@@ -218,25 +218,26 @@ cmake --build build --config Release --target duckdb_hsk --parallel
 | `Binder Error: No function matches ... hsk_sketch_agg(..., INTEGER)` | The `seed` argument requires `UBIGINT` and DuckDB does not implicitly cast `INTEGER`. Cast explicitly: `42::UBIGINT`. |
 | `argument 'm' must be a constant expression` (also `n`, `rank`, `seed`) | Dimension, rank, and seed parameters must be literal constants rather than column references. |
 | `sketch would need N bytes, above the limit` | Sketch size exceeds the default `1 GiB` per-sketch cap. Reduce `m`, `n`, or `rank`, or increase `HSK_MAX_SKETCH_BYTES` (hard cap: `3500 MiB`). |
-| Binary blob interoperability | The native Python backend and DuckDB extension share the `HSK1` binary sketch format (cross-OS blob exchange is untested). The pure-Python `numpy` fallback uses a different RNG and cannot read, write, or merge `HSK1` blobs. Sketches only merge when `(m, n, rank, seed, oversample, core_factor, c_factor)` match (DuckDB hardcodes `c_factor = 8.0`, `oversample = 10`, and `core_factor = 4.0`). |
+| Binary blob interoperability | The native Python backend and DuckDB extension share the `HSK1` binary sketch format; `SplitMix64` makes blobs designed to be reproducible across compilers and little-endian OSes, though cross-OS blob exchange is not yet CI-verified. The pure-Python `numpy` fallback uses a different RNG and cannot read, write, or merge `HSK1` blobs. Sketches only merge when `(m, n, rank, seed, oversample, core_factor, c_factor)` match (DuckDB hardcodes `c_factor = 8.0`, `oversample = 10`, and `core_factor = 4.0`). |
 
 ---
 
 ## Release & Platform Support Matrix
 
-The `v0.1.1` release artifacts are built from the `v0.1.1` git tag (or CI release workflow).
+The `v0.1.1` release artifacts are built from the `v0.1.1` git tag (or CI release workflow). All 18 artifacts (15 Python wheels + 3 DuckDB `v1.1.2` extensions) pass CI tests, and real-hardware runs verify Windows, Linux, and macOS Apple Silicon binaries.
 
 | Component | Verification Status | Notes |
 |---|---|---|
-| **Windows x64, Python 3.12** wheel | **CI-tested + Tested** | Tested in CI (`hsk.BACKEND == 'native'` + `pytest tests/test_core_priorities.py`) and verified locally by maintainer |
+| **Windows x64, Python 3.12** wheel | **CI-tested + Live-verified** | Tested in CI (`hsk.BACKEND == 'native'` + `pytest tests/test_core_priorities.py`) and live-verified on Windows hardware |
 | Windows x64, Python 3.9–3.11, 3.13 wheels | **CI-tested** | Built and tested in CI with `hsk.BACKEND == 'native'` and `pytest tests/test_core_priorities.py` |
-| **Linux `x86_64` (`manylinux`), Python 3.13** wheel | **CI-tested + Tested** | Tested in CI (`hsk.BACKEND == 'native'` + `pytest tests/test_core_priorities.py`) and verified on Python 3.13.18 (Google Colab) |
+| **Linux `x86_64` (`manylinux`), Python 3.13** wheel | **CI-tested + Live-verified** | Tested in CI (`hsk.BACKEND == 'native'` + `pytest tests/test_core_priorities.py`) and live-verified on Linux hardware (CachyOS / glibc 2.44) and Python 3.13.18 (Google Colab) |
 | Linux `x86_64` (`manylinux`), Python 3.9–3.12 wheels | **CI-tested** | Built and tested in CI with `hsk.BACKEND == 'native'` and `pytest tests/test_core_priorities.py` |
-| macOS `arm64`, Python 3.9–3.13 wheels | **CI-tested** | Built and tested in CI with `hsk.BACKEND == 'native'` and `pytest tests/test_core_priorities.py` |
-| **DuckDB extension, Windows x64 (`v1.1.2`)** | **CI-tested + Tested** | CI-tested against `duckdb==1.1.2` (`LOAD`, `hsk_sketch_agg`, `hsk_sketch_svd`) and verified locally by maintainer |
-| DuckDB extension, Linux `x86_64` (`v1.1.2`) | **CI-tested** | Targets `linux_amd64_gcc4` (matching official Linux `duckdb==1.1.2` Python wheels and CLI); CI-tested against `duckdb==1.1.2` (`LOAD`, `hsk_sketch_agg`, `hsk_sketch_svd`) |
-| DuckDB extension, macOS `arm64` (`v1.1.2`) | **CI-tested** | CI-tested against `duckdb==1.1.2` (`LOAD`, `hsk_sketch_agg`, `hsk_sketch_svd`) |
-| Python 3.14 | Not built | Source build is untested |
+| **macOS `arm64`, Python 3.12** wheel | **CI-tested + Live-verified** | Built and tested in CI (`hsk.BACKEND == 'native'` + `pytest tests/test_core_priorities.py`) and live-verified on Apple Silicon hardware |
+| macOS `arm64`, Python 3.9–3.11, 3.13 wheels | **CI-tested** | Built and tested in CI with `hsk.BACKEND == 'native'` and `pytest tests/test_core_priorities.py` |
+| **DuckDB extension, Windows x64 (`v1.1.2`)** | **CI-tested + Live-verified** | CI-tested against `duckdb==1.1.2` (`LOAD`, `hsk_sketch_agg`, `hsk_sketch_svd`) and live-verified on Windows hardware |
+| **DuckDB extension, Linux `x86_64` (`v1.1.2`)** | **CI-tested + Live-verified** | Targets `linux_amd64_gcc4` (matching official Linux `duckdb==1.1.2` Python wheels and CLI); CI-tested against `duckdb==1.1.2` and live-verified on Linux hardware (CachyOS / glibc 2.44) |
+| **DuckDB extension, macOS `arm64` (`v1.1.2`)** | **CI-tested + Live-verified** | CI-tested against `duckdb==1.1.2` (`LOAD`, `hsk_sketch_agg`, `hsk_sketch_svd`) and live-verified on Apple Silicon hardware |
+| Python 3.14 & 3.15 | Not built | Unbuilt / planned for `v0.2.0` (source build untested) |
 
 ### CI Artifacts Fallback
 
